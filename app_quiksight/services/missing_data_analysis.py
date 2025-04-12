@@ -1,4 +1,4 @@
-def missing_data_analysis(df):
+def analyze_missing_data(df):
     try:
         missing_counts = df.isnull().sum()
         total = len(df)

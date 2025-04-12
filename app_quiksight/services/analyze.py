@@ -1,22 +1,39 @@
 import os
 import pandas as pd
-from . import data_overview
-from . import missing_data_analysis
+from ..services.data_overview import get_data_overview
+from ..services.missing_data_analysis import analyze_missing_data
+from fastapi import APIRouter, UploadFile, File
+
+router = APIRouter()
 
 
 
-def analyze_data(file_path):
+
+
+
+
+
+
+# FUNCTION TO ANALYZE UPLOADED FILES
+@router.post("/analyze")
+async def analyze_data(file: UploadFile = File(...)):
     try:
         df = None
         encodings = ['utf-8', 'latin1', 'iso-8859-1', 'cp1252']
 
         for encoding in encodings:
             try:
-                if file_path.endswith('.csv'):
-                    df = pd.read_csv(file_path, encoding=encoding)
+                if file.filename.endswith('.csv'):
+                    content = await file.read()
+                    from io import StringIO
+                    df = pd.read_csv(StringIO(content.decode(encoding)))
+
                     break
-                elif file_path.endswith('.xlsx') or file_path.endswith('.xls'):
-                    df = pd.read_excel(file_path)
+                elif file.filename.endswith('.xlsx') or file.filename.endswith('.xls'):
+                    content = await file.read()
+                    from io import BytesIO
+                    df = pd.read_excel(BytesIO(content))
+
                     break
                 else:
                     return {"error": "Unsupported file format"}
@@ -24,14 +41,17 @@ def analyze_data(file_path):
                 continue
             except Exception as e:
                 return {"error": str(e)}
+            
 
         if df is None:
             return {"error": "Failed to read file. Try another encoding or format."}
 
         return {
-            "overview": data_overview.get_data_overview(df),
-            "missing_data": missing_data_analysis.analyze_missing_data(df) if hasattr(missing_data_analysis, 'analyze_missing_data') else {}
+            "overview": get_data_overview(df),
+            "missing_data": analyze_missing_data(df)
         }
 
     except Exception as e:
         return {"error": f"analyze_data error: {str(e)}"}
+
+

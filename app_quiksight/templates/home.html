@@ -13,14 +13,16 @@
   </head>
   <body>
 
-    # Upload form
-    <form action="/api/upload" method="post">
-      <input type="file" class="file-input" accept=".csv, .xlsx, .xls" />
+    
+    <form action="/api/upload" method="post" enctype="multipart/form-data">
+      <input type="file" name="file" class="file-input" accept=".csv, .xlsx, .xls" required/>
 
-      <button class="btn">Medium</button>
+      <button class="btn">submit</button>
     </form>
-    
 
-    
+    {% if error %}
+      <p class="text-red-500 mt-4">{{ error }}</p>
+    {% endif %}
+
   </body>
 </html>

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Results</title>
+  </head>
+  <body>
+    <h2>Uploaded File:</h2>
+
+    <h1>Uploaded File:</h1>
+    <div>
+      <p class="mt-2">Filename : {{ file.filename }}</p>
+    </div>
+
+    <div>
+      <h3>Data Overview</h3>
+      <pre>{{ analysis["overview"] }}</pre>
+
+      <h3>Missing Data Analysis</h3>
+      <pre>{{ analysis["missing_data"] }}</pre>
+    </div>
+  </body>
+</html>

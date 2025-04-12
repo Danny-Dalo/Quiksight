@@ -1,0 +1,3 @@
+"""
+QuikSight application package.
+"""
