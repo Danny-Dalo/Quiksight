@@ -16,6 +16,7 @@ templates = Jinja2Templates(directory="app_quiksight/templates")
 
 uploaded_file = None
 
+
 @router.post("/upload", response_class=HTMLResponse)
 async def upload_file(request: Request, file: UploadFile = File(...)):
     global uploaded_file
@@ -39,6 +40,9 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         })
     
     uploaded_file = file
+    global analysis_result
+    analysis_result = await analyze_data(uploaded_file)
+    
     
     
     return RedirectResponse(url="/api/results", status_code=303)
@@ -53,7 +57,7 @@ async def results(request: Request):
     if not uploaded_file:
         return RedirectResponse(url="/", status_code=303)
     
-    analysis_result = await analyze_data(uploaded_file)
+    
     
     return templates.TemplateResponse("results.html", {
         "request": request, 
