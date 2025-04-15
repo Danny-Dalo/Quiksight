@@ -10,37 +10,88 @@
       type="text/css"
     />
     <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #f8fafc;
+      }
+      .card {
+        transition: transform 0.2s ease-in-out;
+      }
+      .card:hover {
+        transform: translateY(-2px);
+      }
+      .gradient-text {
+        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+    </style>
   </head>
 
-  <body class="p-8 bg-base-200">
+  <body class="p-8">
     <div class="max-w-7xl mx-auto">
+      <!-- Header -->
+      <div class="text-center mb-12">
+        <h1 class="text-4xl font-bold gradient-text mb-4">
+          Data Analysis Results
+        </h1>
+        <p class="text-gray-600">
+          Comprehensive analysis of your uploaded dataset
+        </p>
+      </div>
+
       <!-- File Information -->
-      <div class="card bg-base-100 shadow-xl mb-6">
+      <div class="card bg-white shadow-lg mb-8 border border-gray-100">
         <div class="card-body">
-          <h2 class="card-title text-2xl mb-2">File Information</h2>
-          <p class="text-lg">Filename: {{ file.filename }}</p>
-          <p class="text-lg">Total Rows: {{ analysis.overview.shape.rows }}</p>
-          <p class="text-lg">
-            Total Columns: {{ analysis.overview.shape.columns }}
-          </p>
-          <p class="text-lg">
-            Duplicate Rows: {{ analysis.overview.duplicate_count }}
-          </p>
+          <h2 class="card-title text-2xl font-semibold mb-4 text-gray-800">
+            File Information
+          </h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="flex items-center space-x-2">
+              <span class="text-gray-500">Filename:</span>
+              <span class="font-medium text-gray-700">{{ file.filename }}</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="text-gray-500">Total Rows:</span>
+              <span class="font-medium text-gray-700"
+                >{{ analysis.overview.shape.rows }}</span
+              >
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="text-gray-500">Total Columns:</span>
+              <span class="font-medium text-gray-700"
+                >{{ analysis.overview.shape.columns }}</span
+              >
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="text-gray-500">Duplicate Rows:</span>
+              <span class="font-medium text-gray-700"
+                >{{ analysis.overview.duplicate_count }}</span
+              >
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
         <!-- Column Information -->
-        <div class="card bg-base-100 shadow-xl">
+        <div class="card bg-white shadow-lg border border-gray-100">
           <div class="card-body">
-            <h2 class="card-title text-xl mb-4">Column Information</h2>
+            <h2 class="card-title text-xl font-semibold mb-4 text-gray-800">
+              Column Information
+            </h2>
             <div class="overflow-x-auto">
               <table class="table table-zebra w-full">
                 <thead>
-                  <tr>
-                    <th>Column Name</th>
-                    <th>Data Type</th>
-                    <th>Unique Values</th>
+                  <tr class="bg-gray-50">
+                    <th class="text-gray-600 font-medium">Column Name</th>
+                    <th class="text-gray-600 font-medium">Data Type</th>
+                    <th class="text-gray-600 font-medium">Unique Values</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -49,9 +100,11 @@
                   analysis.overview.unique_values|selectattr("column_name",
                   "equalto", col.column_name)|first %}
                   <tr>
-                    <td>{{ col.column_name }}</td>
-                    <td>{{ col.data_type }}</td>
-                    <td>{{ unique.unique_values }}</td>
+                    <td class="font-medium text-gray-700">
+                      {{ col.column_name }}
+                    </td>
+                    <td class="text-gray-600">{{ col.data_type }}</td>
+                    <td class="text-gray-600">{{ unique.unique_values }}</td>
                   </tr>
                   {% endfor %}
                 </tbody>
@@ -61,27 +114,35 @@
         </div>
 
         <!-- Missing Data Analysis -->
-        <div class="card bg-base-100 shadow-xl">
+        <div class="card bg-white shadow-lg border border-gray-100">
           <div class="card-body">
-            <h2 class="card-title text-xl mb-4">Missing Data Analysis</h2>
+            <h2 class="card-title text-xl font-semibold mb-4 text-gray-800">
+              Missing Data Analysis
+            </h2>
             {% if analysis.missing_data.missing_data is string %}
-            <p class="text-success">{{ analysis.missing_data.missing_data }}</p>
+            <div class="alert alert-success bg-green-50 border-green-200">
+              <p class="text-green-700">
+                {{ analysis.missing_data.missing_data }}
+              </p>
+            </div>
             {% else %}
             <div class="overflow-x-auto">
               <table class="table table-zebra w-full">
                 <thead>
-                  <tr>
-                    <th>Column</th>
-                    <th>Missing Count</th>
-                    <th>Missing %</th>
+                  <tr class="bg-gray-50">
+                    <th class="text-gray-600 font-medium">Column</th>
+                    <th class="text-gray-600 font-medium">Missing Count</th>
+                    <th class="text-gray-600 font-medium">Missing %</th>
                   </tr>
                 </thead>
                 <tbody>
                   {% for item in analysis.missing_data.missing_data %}
                   <tr>
-                    <td>{{ item.column }}</td>
-                    <td>{{ item.missing_count }}</td>
-                    <td>{{ item.missing_percentage }}%</td>
+                    <td class="font-medium text-gray-700">{{ item.column }}</td>
+                    <td class="text-gray-600">{{ item.missing_count }}</td>
+                    <td class="text-gray-600">
+                      {{ item.missing_percentage }}%
+                    </td>
                   </tr>
                   {% endfor %}
                 </tbody>
@@ -157,39 +218,48 @@
       </div>
     </div>
 
-    <div class="card bg-base-100 shadow-xl mt-6">
+    <div class="card bg-white shadow-lg mt-8 border border-gray-100">
       <div class="card-body">
-        <h2 class="card-title text-xl mb-4">AI Analysis Results</h2>
+        <h2 class="card-title text-2xl font-semibold mb-6 text-gray-800">
+          AI Analysis Results
+        </h2>
 
         {% if analysis.gemini_result.error %}
-        <div class="alert alert-error">
-          <p>{{ analysis.gemini_result.error }}</p>
+        <div class="alert alert-error bg-red-50 border-red-200">
+          <p class="text-red-700">{{ analysis.gemini_result.error }}</p>
         </div>
         {% else %}
         <!-- Summary Section -->
-        <div class="mb-6">
-          <h3 class="text-lg font-semibold mb-2">Summary</h3>
-          <p class="text-base">{{ analysis.gemini_result.summary }}</p>
+        <div class="mb-8">
+          <h3 class="text-xl font-semibold mb-3 text-gray-800">Summary</h3>
+          <div class="bg-blue-50 p-6 rounded-lg border border-blue-100">
+            <p class="text-gray-700 leading-relaxed">
+              {{ analysis.gemini_result.summary }}
+            </p>
+          </div>
         </div>
 
         <!-- Issues Section -->
-        <div class="mb-6">
-          <h3 class="text-lg font-semibold mb-2">Data Quality Issues</h3>
+        <div class="mb-8">
+          <h3 class="text-xl font-semibold mb-4 text-gray-800">
+            Data Quality Issues
+          </h3>
 
           <!-- Critical Issues -->
           {% if analysis.gemini_result.issues.critical %}
-          <div class="mb-4">
-            <h4 class="text-md font-semibold text-error mb-2">
+          <div class="mb-6">
+            <h4 class="text-lg font-semibold text-red-600 mb-3">
               Critical Issues
             </h4>
-            <div class="space-y-2">
+            <div class="space-y-4">
               {% for issue in analysis.gemini_result.issues.critical %}
-              <div class="card bg-error/10">
-                <div class="card-body p-4">
-                  <h5 class="font-semibold">{{ issue.column }}</h5>
-                  <p class="text-sm">{{ issue.issue }}</p>
-                  <p class="text-sm mt-1">
-                    <strong>Impact:</strong> {{ issue.impact }}
+              <div class="card bg-red-50 border border-red-100">
+                <div class="card-body p-5">
+                  <h5 class="font-semibold text-red-800">{{ issue.column }}</h5>
+                  <p class="text-gray-700 mt-2">{{ issue.issue }}</p>
+                  <p class="text-gray-600 mt-2">
+                    <strong class="text-red-700">Impact:</strong> {{
+                    issue.impact }}
                   </p>
                 </div>
               </div>
@@ -200,18 +270,21 @@
 
           <!-- Moderate Issues -->
           {% if analysis.gemini_result.issues.moderate %}
-          <div class="mb-4">
-            <h4 class="text-md font-semibold text-warning mb-2">
+          <div class="mb-6">
+            <h4 class="text-lg font-semibold text-amber-600 mb-3">
               Moderate Issues
             </h4>
-            <div class="space-y-2">
+            <div class="space-y-4">
               {% for issue in analysis.gemini_result.issues.moderate %}
-              <div class="card bg-warning/10">
-                <div class="card-body p-4">
-                  <h5 class="font-semibold">{{ issue.column }}</h5>
-                  <p class="text-sm">{{ issue.issue }}</p>
-                  <p class="text-sm mt-1">
-                    <strong>Impact:</strong> {{ issue.impact }}
+              <div class="card bg-amber-50 border border-amber-100">
+                <div class="card-body p-5">
+                  <h5 class="font-semibold text-amber-800">
+                    {{ issue.column }}
+                  </h5>
+                  <p class="text-gray-700 mt-2">{{ issue.issue }}</p>
+                  <p class="text-gray-600 mt-2">
+                    <strong class="text-amber-700">Impact:</strong> {{
+                    issue.impact }}
                   </p>
                 </div>
               </div>
@@ -222,16 +295,21 @@
 
           <!-- Minor Issues -->
           {% if analysis.gemini_result.issues.minor %}
-          <div class="mb-4">
-            <h4 class="text-md font-semibold text-info mb-2">Minor Issues</h4>
-            <div class="space-y-2">
+          <div class="mb-6">
+            <h4 class="text-lg font-semibold text-blue-600 mb-3">
+              Minor Issues
+            </h4>
+            <div class="space-y-4">
               {% for issue in analysis.gemini_result.issues.minor %}
-              <div class="card bg-info/10">
-                <div class="card-body p-4">
-                  <h5 class="font-semibold">{{ issue.column }}</h5>
-                  <p class="text-sm">{{ issue.issue }}</p>
-                  <p class="text-sm mt-1">
-                    <strong>Impact:</strong> {{ issue.impact }}
+              <div class="card bg-blue-50 border border-blue-100">
+                <div class="card-body p-5">
+                  <h5 class="font-semibold text-blue-800">
+                    {{ issue.column }}
+                  </h5>
+                  <p class="text-gray-700 mt-2">{{ issue.issue }}</p>
+                  <p class="text-gray-600 mt-2">
+                    <strong class="text-blue-700">Impact:</strong> {{
+                    issue.impact }}
                   </p>
                 </div>
               </div>
@@ -243,13 +321,15 @@
 
         <!-- Recommendations Section -->
         {% if analysis.gemini_result.recommendations %}
-        <div class="mb-6">
-          <h3 class="text-lg font-semibold mb-2">Recommendations</h3>
-          <div class="space-y-2">
+        <div class="mb-8">
+          <h3 class="text-xl font-semibold mb-4 text-gray-800">
+            Recommendations
+          </h3>
+          <div class="space-y-4">
             {% for rec in analysis.gemini_result.recommendations %}
-            <div class="card bg-success/10">
-              <div class="card-body p-4">
-                <p class="text-sm">{{ rec }}</p>
+            <div class="card bg-green-50 border border-green-100">
+              <div class="card-body p-5">
+                <p class="text-gray-700">{{ rec }}</p>
               </div>
             </div>
             {% endfor %}
@@ -259,13 +339,17 @@
 
         <!-- Data Quality Score -->
         {% if analysis.gemini_result.data_quality_score is defined %}
-        <div class="mb-6">
-          <h3 class="text-lg font-semibold mb-2">Data Quality Score</h3>
-          <div
-            class="radial-progress text-primary"
-            style="--value:{{ analysis.gemini_result.data_quality_score }}; --size:12rem; --thickness: 2rem;"
-          >
-            {{ analysis.gemini_result.data_quality_score }}%
+        <div class="mb-8">
+          <h3 class="text-xl font-semibold mb-4 text-gray-800">
+            Data Quality Score
+          </h3>
+          <div class="flex justify-center">
+            <div
+              class="radial-progress text-blue-600"
+              style="--value:{{ analysis.gemini_result.data_quality_score }}; --size:14rem; --thickness: 2rem;"
+            >
+              {{ analysis.gemini_result.data_quality_score }}%
+            </div>
           </div>
         </div>
         {% endif %} {% endif %}
