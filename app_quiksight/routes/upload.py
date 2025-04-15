@@ -6,6 +6,14 @@ from fastapi import UploadFile, File, HTTPException
 import os
 from app_quiksight.services.analyze import analyze_data
 
+
+
+
+
+
+
+
+
 ALLOWED_EXTENSIONS = [".csv", ".xlsx", ".xls"]
 
 router = APIRouter()
@@ -64,8 +72,6 @@ async def results(request: Request):
         "file": uploaded_file,
         "analysis": analysis_result
     })
-
-
 
 
 

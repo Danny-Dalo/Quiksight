@@ -7,7 +7,7 @@ def analyze_missing_data(df):
             {
                 "column": col,
                 "missing_count": int(count),
-                "missing_percentage": round((count / total) * 100, 2),
+                "missing_percentage": round((count / total) * 100, 3),
             }
             for col, count in missing_counts.items() if count > 0
         ]

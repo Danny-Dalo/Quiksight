@@ -1,22 +1,275 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <title>Results</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Data Analysis Results</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
   </head>
-  <body>
-    <h2>Uploaded File:</h2>
 
-    <h1>Uploaded File:</h1>
-    <div>
-      <p class="mt-2">Filename : {{ file.filename }}</p>
+  <body class="p-8 bg-base-200">
+    <div class="max-w-7xl mx-auto">
+      <!-- File Information -->
+      <div class="card bg-base-100 shadow-xl mb-6">
+        <div class="card-body">
+          <h2 class="card-title text-2xl mb-2">File Information</h2>
+          <p class="text-lg">Filename: {{ file.filename }}</p>
+          <p class="text-lg">Total Rows: {{ analysis.overview.shape.rows }}</p>
+          <p class="text-lg">
+            Total Columns: {{ analysis.overview.shape.columns }}
+          </p>
+          <p class="text-lg">
+            Duplicate Rows: {{ analysis.overview.duplicate_count }}
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Column Information -->
+        <div class="card bg-base-100 shadow-xl">
+          <div class="card-body">
+            <h2 class="card-title text-xl mb-4">Column Information</h2>
+            <div class="overflow-x-auto">
+              <table class="table table-zebra w-full">
+                <thead>
+                  <tr>
+                    <th>Column Name</th>
+                    <th>Data Type</th>
+                    <th>Unique Values</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for col in analysis.overview.column_data_types %} {% set
+                  unique =
+                  analysis.overview.unique_values|selectattr("column_name",
+                  "equalto", col.column_name)|first %}
+                  <tr>
+                    <td>{{ col.column_name }}</td>
+                    <td>{{ col.data_type }}</td>
+                    <td>{{ unique.unique_values }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Missing Data Analysis -->
+        <div class="card bg-base-100 shadow-xl">
+          <div class="card-body">
+            <h2 class="card-title text-xl mb-4">Missing Data Analysis</h2>
+            {% if analysis.missing_data.missing_data is string %}
+            <p class="text-success">{{ analysis.missing_data.missing_data }}</p>
+            {% else %}
+            <div class="overflow-x-auto">
+              <table class="table table-zebra w-full">
+                <thead>
+                  <tr>
+                    <th>Column</th>
+                    <th>Missing Count</th>
+                    <th>Missing %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in analysis.missing_data.missing_data %}
+                  <tr>
+                    <td>{{ item.column }}</td>
+                    <td>{{ item.missing_count }}</td>
+                    <td>{{ item.missing_percentage }}%</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Descriptive Statistics -->
+      {% if analysis.overview.descriptive_stats %}
+      <div class="card bg-base-100 shadow-xl mt-6">
+        <div class="card-body">
+          <h2 class="card-title text-xl mb-4">Descriptive Statistics</h2>
+          <div class="overflow-x-auto">
+            <table class="table table-zebra w-full">
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  {% for column in analysis.overview.descriptive_stats.keys() %}
+                  <th>{{ column }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for stat in ['count', 'mean', 'std', 'min', '25%', '50%',
+                '75%', 'max'] %}
+                <tr>
+                  <td>{{ stat }}</td>
+                  {% for column in analysis.overview.descriptive_stats.keys() %}
+                  <td>
+                    {{
+                    analysis.overview.descriptive_stats[column][stat]|round(2)
+                    if analysis.overview.descriptive_stats[column][stat] != None
+                    else 'N/A' }}
+                  </td>
+                  {% endfor %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Data Preview -->
+      <div class="card bg-base-100 shadow-xl mt-6">
+        <div class="card-body">
+          <h2 class="card-title text-xl mb-4">Data Preview (First 10 Rows)</h2>
+          <div class="overflow-x-auto">
+            <table class="table table-zebra w-full">
+              <thead>
+                <tr>
+                  {% for key in analysis.overview.table_head[0].keys() %}
+                  <th>{{ key }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in analysis.overview.table_head %}
+                <tr>
+                  {% for value in row.values() %}
+                  <td>{{ value }}</td>
+                  {% endfor %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div>
-      <h3>Data Overview</h3>
-      <pre>{{ analysis["overview"] }}</pre>
+    <div class="card bg-base-100 shadow-xl mt-6">
+      <div class="card-body">
+        <h2 class="card-title text-xl mb-4">AI Analysis Results</h2>
 
-      <h3>Missing Data Analysis</h3>
-      <pre>{{ analysis["missing_data"] }}</pre>
+        {% if analysis.gemini_result.error %}
+        <div class="alert alert-error">
+          <p>{{ analysis.gemini_result.error }}</p>
+        </div>
+        {% else %}
+        <!-- Summary Section -->
+        <div class="mb-6">
+          <h3 class="text-lg font-semibold mb-2">Summary</h3>
+          <p class="text-base">{{ analysis.gemini_result.summary }}</p>
+        </div>
+
+        <!-- Issues Section -->
+        <div class="mb-6">
+          <h3 class="text-lg font-semibold mb-2">Data Quality Issues</h3>
+
+          <!-- Critical Issues -->
+          {% if analysis.gemini_result.issues.critical %}
+          <div class="mb-4">
+            <h4 class="text-md font-semibold text-error mb-2">
+              Critical Issues
+            </h4>
+            <div class="space-y-2">
+              {% for issue in analysis.gemini_result.issues.critical %}
+              <div class="card bg-error/10">
+                <div class="card-body p-4">
+                  <h5 class="font-semibold">{{ issue.column }}</h5>
+                  <p class="text-sm">{{ issue.issue }}</p>
+                  <p class="text-sm mt-1">
+                    <strong>Impact:</strong> {{ issue.impact }}
+                  </p>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- Moderate Issues -->
+          {% if analysis.gemini_result.issues.moderate %}
+          <div class="mb-4">
+            <h4 class="text-md font-semibold text-warning mb-2">
+              Moderate Issues
+            </h4>
+            <div class="space-y-2">
+              {% for issue in analysis.gemini_result.issues.moderate %}
+              <div class="card bg-warning/10">
+                <div class="card-body p-4">
+                  <h5 class="font-semibold">{{ issue.column }}</h5>
+                  <p class="text-sm">{{ issue.issue }}</p>
+                  <p class="text-sm mt-1">
+                    <strong>Impact:</strong> {{ issue.impact }}
+                  </p>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- Minor Issues -->
+          {% if analysis.gemini_result.issues.minor %}
+          <div class="mb-4">
+            <h4 class="text-md font-semibold text-info mb-2">Minor Issues</h4>
+            <div class="space-y-2">
+              {% for issue in analysis.gemini_result.issues.minor %}
+              <div class="card bg-info/10">
+                <div class="card-body p-4">
+                  <h5 class="font-semibold">{{ issue.column }}</h5>
+                  <p class="text-sm">{{ issue.issue }}</p>
+                  <p class="text-sm mt-1">
+                    <strong>Impact:</strong> {{ issue.impact }}
+                  </p>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Recommendations Section -->
+        {% if analysis.gemini_result.recommendations %}
+        <div class="mb-6">
+          <h3 class="text-lg font-semibold mb-2">Recommendations</h3>
+          <div class="space-y-2">
+            {% for rec in analysis.gemini_result.recommendations %}
+            <div class="card bg-success/10">
+              <div class="card-body p-4">
+                <p class="text-sm">{{ rec }}</p>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Data Quality Score -->
+        {% if analysis.gemini_result.data_quality_score is defined %}
+        <div class="mb-6">
+          <h3 class="text-lg font-semibold mb-2">Data Quality Score</h3>
+          <div
+            class="radial-progress text-primary"
+            style="--value:{{ analysis.gemini_result.data_quality_score }}; --size:12rem; --thickness: 2rem;"
+          >
+            {{ analysis.gemini_result.data_quality_score }}%
+          </div>
+        </div>
+        {% endif %} {% endif %}
+      </div>
     </div>
   </body>
 </html>

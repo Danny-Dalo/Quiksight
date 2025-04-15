@@ -1,9 +1,11 @@
 from fastapi import FastAPI, Request
 from .routes import upload
-from. services import analyze
+from .services import analyze
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
+from api_training2.analyze_dataframe import analyze_larger_dataframe
+
 
 
 
@@ -22,5 +24,4 @@ async def home(request : Request):
 app.include_router(upload.router, prefix="/api", tags=["upload"])
 
 app.include_router(analyze.router, prefix="/api", tags=["analyze"])
-
 
