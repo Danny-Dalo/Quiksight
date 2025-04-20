@@ -16,3 +16,11 @@ file_path = [
 ]
 # df = pd.read_excel(file_path[3])
 data = pd.read_excel(file_path[0])
+
+
+
+
+
+
+
+

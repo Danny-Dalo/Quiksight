@@ -56,9 +56,12 @@ def generate_data_dictionary(df, api_key, num_samples=3, delay=3):  # Added dela
 
 # Usage with delay
 data_dictionary = generate_data_dictionary(data, GEMINI_API_KEY, delay=2)
+
+if data_dictionary is not None:
+  Json_data_dictionary = json.dumps(data_dictionary)
+#   print(Json_data_dictionary)
+else:
+  print("❌ Failed to generate a valid data dictionary.")
+
 Json_data_dictionary = json.dumps(data_dictionary, indent=4)
 
-
-# def get_json_data_dictionary():
-#     data_dictionary = generate_data_dictionary(data, GEMINI_API_KEY, delay=2)
-#     return json.dumps(data_dictionary, indent=4)

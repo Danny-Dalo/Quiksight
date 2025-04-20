@@ -37,25 +37,7 @@ def _clean_value_for_json(value):
 
 
 def get_data_overview(df: pd.DataFrame) -> Dict[str, Any]:
-    """
-    Generate a comprehensive overview of the DataFrame.
     
-    Args:
-        df (pd.DataFrame): Input DataFrame to analyze
-        
-    Returns:
-        Dict[str, Any]: Dictionary containing:
-            - shape: Dict with number of rows and columns
-            - contains_missing: bool indicating presence of missing values
-            - column_data_types: List of column names and their types
-            - descriptive_stats: Statistical summary of numerical columns
-            - table_head: First 10 rows of data
-            - unique_values: Count of unique values per column
-            - duplicate_count: Number of duplicate rows
-            
-    Raises:
-        ValueError: If DataFrame is empty
-    """
     if df.empty:
         raise ValueError("DataFrame is empty")
     
@@ -66,6 +48,7 @@ def get_data_overview(df: pd.DataFrame) -> Dict[str, Any]:
     # Clean the data for JSON serialization BEFORE returning
     cleaned_stats = _clean_value_for_json(descriptive_stats_raw)
     cleaned_head = _clean_value_for_json(table_head_raw) # Cleans list of dicts
+
 
     return {
         "shape": {
@@ -80,19 +63,6 @@ def get_data_overview(df: pd.DataFrame) -> Dict[str, Any]:
         "duplicate_count": int(df.duplicated().sum())       # Already safe
     }
 
-
-    # return {
-    #     "shape": {
-    #         "columns": df.shape[1],
-    #         "rows": df.shape[0]
-    #     },
-    #     "contains_missing": bool(df.isnull().values.any()),
-    #     "column_data_types": _get_column_data_types(df),
-    #     "descriptive_stats": _get_descriptive_stats(df),
-    #     "table_head": df.head(10).to_dict(orient="records"),
-    #     "unique_values": _get_unique_values(df),
-    #     "duplicate_count": int(df.duplicated().sum())
-    # }
 
 
 

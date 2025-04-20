@@ -6,7 +6,8 @@ from .config import GEMINI_API_KEY
 
 
 
-def call_gemini_api(prompt, api_key, model_name="gemini-2.5-pro-exp-03-25"):
+def call_gemini_api(prompt, api_key, model_name="gemini-2.0-flash-thinking-exp-01-21"):
+# def call_gemini_api(prompt, api_key, model_name="gemini-2.5-pro-exp-03-25"):
     """
     Calls the Gemini API using the Google Generative AI Python SDK.
 

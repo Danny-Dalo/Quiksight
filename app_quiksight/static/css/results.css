@@ -1,0 +1,116 @@
+body {
+  font-family: "Inter", sans-serif;
+  background-color: #fafafa;
+}
+.card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid #f0f0f0;
+}
+.section-icon {
+  color: #6366f1;
+  background: #f5f5ff;
+  padding: 8px;
+  border-radius: 8px;
+  margin-right: 12px;
+}
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+th {
+  background: #f8f8f8;
+  color: #666;
+  font-weight: 500;
+  text-align: left;
+  padding: 12px 16px;
+}
+td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  color: #444;
+}
+.gradient-text {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.875rem;
+}
+.status-success {
+  background: #f0fdf4;
+  color: #15803d;
+}
+.status-warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+.status-error {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+/* Add to your existing styles */
+.table-container {
+  /* max-height: 50%; Adjust this value as needed */
+  max-height: 75vh;
+  overflow-y: auto;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  margin-top: 12px;
+}
+
+/* Make table headers sticky */
+.table-container table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table-container thead th {
+  position: sticky;
+  top: 0;
+  background: #f8f8f8;
+  z-index: 10;
+  box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Optional: Add scrollbar styling */
+.table-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.table-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 0 8px 8px 0;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 8px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+.sticky-col {
+  position: sticky;
+  left: 0;
+  background-color: inherit; /* Ensure the sticky column's background doesn't hide the table background */
+  z-index: 1; /* Ensure it stays on top of the scrolling content */
+}
+
+.first-col {
+  background: #f8f8f8;
+  border-right: 1px solid #ccc;
+  box-shadow: 2px 0 2px -1px rgba(0, 0, 0, 0.1);
+}
+
+.table-container thead th.sticky-col {
+  z-index: 11;
+}

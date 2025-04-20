@@ -15,9 +15,10 @@ from .file_path import data
 
 def analyze_larger_dataframe(df, API_KEY=GEMINI_API_KEY, delay=2):
     
+    
 
     # Convert sample of dataset to JSON for context
-    sample_size = int(min(max(0.01 * len(df), 5), 500))  # 1% of data, min 5, max 500
+    sample_size = int(min(max(0.01 * len(df), 2), 500))  # 1% of data, min 5, max 500
     dataset_sample = df.sample(sample_size, random_state=42).to_dict(orient="records")
 
     # Generate data dictionary and context
@@ -40,8 +41,8 @@ def analyze_larger_dataframe(df, API_KEY=GEMINI_API_KEY, delay=2):
     ### **Dataset Overview**
     - **Context**: This dataset is provided with a data dictionary and metadata.
     - **Sample Data**: {json.dumps(dataset_sample, indent=4)}
-    - **Data Dictionary**: {json.dumps(Json_data_dictionary, indent=4)}
-    - **Metadata Summary**: {json.dumps(json_dataset_context, indent=4)}
+    - **Data Dictionary**: {json.dumps(Json_data_dictionary)}
+    - **Metadata Summary**: {json.dumps(json_dataset_context)}
 
     ---
     ### **Analysis Objectives**
@@ -94,6 +95,7 @@ def analyze_larger_dataframe(df, API_KEY=GEMINI_API_KEY, delay=2):
 
     **DO NOT include extra explanations or unnecessary text. Only return structured insights.**  
     """
+    
 
     try:
         time.sleep(delay)

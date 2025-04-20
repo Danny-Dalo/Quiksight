@@ -4,9 +4,6 @@ from .services import analyze
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
-from api_training2.analyze_dataframe import analyze_larger_dataframe
-
-
 
 
 
