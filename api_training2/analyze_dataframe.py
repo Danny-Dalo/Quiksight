@@ -14,12 +14,15 @@ from .file_path import data
 
 
 def analyze_larger_dataframe(df, API_KEY=GEMINI_API_KEY, delay=2):
+    if len(df) <= 10000:
+        # For small datasets (≤10k rows), use the entire dataset
+        dataset_sample = df.to_dict(orient="records")
+    else:
+        # For large datasets (>10k rows), use 1% with min 5 and max 500 samples
+        sample_size = max(min(int(0.01 * len(df)), 500), 5)
+        dataset_sample = df.sample(sample_size, random_state=42).to_dict(orient="records")
     
     
-
-    # Convert sample of dataset to JSON for context
-    sample_size = int(min(max(0.01 * len(df), 2), 500))  # 1% of data, min 5, max 500
-    dataset_sample = df.sample(sample_size, random_state=42).to_dict(orient="records")
 
     # Generate data dictionary and context
     Json_data_dictionary = generate_data_dictionary(df, API_KEY)
