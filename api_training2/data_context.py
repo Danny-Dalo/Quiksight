@@ -10,6 +10,14 @@ def detect_outliers(df):
     for col in df.select_dtypes(include=["number"]).columns:
         data = df[col].dropna()
 
+        if len(data) == 0:
+            outlier_summary[col] = {
+                "iqr_outliers": [],
+                "modified_z_outliers": [],
+                "total_outlier_percentage": 0.0,
+            }
+            continue
+
         # IQR Method
         Q1 = data.quantile(0.25)
         Q3 = data.quantile(0.75)

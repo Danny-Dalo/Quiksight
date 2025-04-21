@@ -21,14 +21,13 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
 
-    <!-- link to static files -->
+    
     <link rel="stylesheet" href="{{url_for( 'static', path='css/results.css')}}">
     
   </head>
 
   <body class="p-8">
     <div class="max-w-7xl mx-auto">
-      <!-- Header -->
       <div class="text-center mb-8">
         <div class="flex items-center justify-center mb-2">
           <i class="fas fa-chart-line text-indigo-600 text-2xl mr-2"></i>
@@ -44,7 +43,6 @@
 
 
 
-      <!-- File Information -->
       <div class="card mb-6 p-6">
         <div class="flex items-center mb-4">
           <div class="section-icon">
@@ -81,7 +79,6 @@
 
       
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="wrappy">
-        <!-- Column Information -->
         <div class="card p-6">
           <div class="flex items-center mb-4">
             <div class="section-icon">
@@ -116,7 +113,6 @@
           </div>
         </div>
 
-        <!-- Missing Data Analysis -->
         <div class="card p-6">
           <div class="flex items-center mb-4">
             <div class="section-icon">
@@ -164,8 +160,8 @@
 
 
       
-<!-- Descriptive analysis section -->
-{% if analysis.overview.descriptive_stats %}
+
+      {% if analysis.overview.descriptive_stats %}
 <div class="card p-6 mt-6">
   <div class="flex items-center mb-4">
     <div class="section-icon">
@@ -215,8 +211,11 @@
 {% endif %}
 
 
- <!-- Data Preview -->
- <div class="card p-6 mt-6">
+   
+
+
+
+<div class="card p-6 mt-6">
   <div class="flex items-center mb-4">
     <div class="section-icon">
       <i class="fas fa-table"></i>
@@ -267,7 +266,7 @@
 
 
 
-<!-- AI Analysis Results -->
+
 <div class="card p-6 mt-6">
   <div class="flex items-center mb-6">
     <div class="section-icon">
@@ -278,12 +277,14 @@
     </h2>
   </div>
 
-  {% if analysis.gemini_result.error %}
+  {% if ai_analysis.ai_result.error %}
   <div class="status-badge status-error">
-    {{ analysis.gemini_result.error }}
+    {{ ai_analysis.error }}
   </div>
   {% else %}
-  <!-- Summary Section -->
+
+
+
   <div class="mb-8">
     <div class="flex items-center mb-3">
       <i class="fas fa-info-circle text-indigo-600 mr-2"></i>
@@ -291,12 +292,12 @@
     </div>
     <div class="bg-gray-50 p-4 rounded-lg">
       <p class="text-gray-700 text-sm leading-relaxed">
-        {{ analysis.gemini_result.summary }}
+        {{ ai_analysis.ai_result.summary }}
       </p>
     </div>
   </div>
 
-  <!-- Issues Section -->
+
   <div class="mb-8">
     <div class="flex items-center mb-4">
       <i class="fas fa-exclamation-circle text-indigo-600 mr-2"></i>
@@ -305,14 +306,14 @@
       </h3>
     </div>
 
-    <!-- Critical Issues -->
-    {% if analysis.gemini_result.issues.critical %}
+
+    {% if ai_analysis.ai_result.issues.critical %}
     <div class="mb-4">
       <h4 class="text-sm font-medium text-red-600 mb-2">
         Critical Issues
       </h4>
       <div class="space-y-3">
-        {% for issue in analysis.gemini_result.issues.critical %}
+        {% for issue in ai_analysis.ai_result.issues.critical %}
         <div class="bg-red-50 p-4 rounded-lg border border-red-100">
           <div class="flex items-start">
             <i class="fas fa-times-circle text-red-500 mt-1 mr-2"></i>
@@ -332,14 +333,15 @@
     </div>
     {% endif %}
 
-    <!-- Moderate Issues -->
-    {% if analysis.gemini_result.issues.moderate %}
+    
+    
+    {% if ai_analysis.ai_result.issues.moderate %}
     <div class="mb-4">
       <h4 class="text-sm font-medium text-amber-600 mb-2">
         Moderate Issues
       </h4>
       <div class="space-y-3">
-        {% for issue in analysis.gemini_result.issues.moderate %}
+        {% for issue in ai_analysis.ai_result.issues.moderate %}
         <div class="bg-amber-50 p-4 rounded-lg border border-amber-100">
           <div class="flex items-start">
             <i
@@ -359,14 +361,17 @@
         {% endfor %}
       </div>
     </div>
+  
     {% endif %}
 
-    <!-- Minor Issues -->
-    {% if analysis.gemini_result.issues.minor %}
+
+
+
+    {% if ai_analysis.ai_result.issues.minor %}
     <div class="mb-4">
       <h4 class="text-sm font-medium text-blue-600 mb-2">Minor Issues</h4>
       <div class="space-y-3">
-        {% for issue in analysis.gemini_result.issues.minor %}
+        {% for issue in ai_analysis.ai_result.issues.minor %}
         <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
           <div class="flex items-start">
             <i class="fas fa-info-circle text-blue-500 mt-1 mr-2"></i>
@@ -387,15 +392,15 @@
     {% endif %}
   </div>
 
-  <!-- Recommendations Section -->
-  {% if analysis.gemini_result.recommendations %}
+
+  {% if ai_analysis.ai_result.recommendations %}
   <div class="mb-8">
     <div class="flex items-center mb-4">
       <i class="fas fa-lightbulb text-indigo-600 mr-2"></i>
       <h3 class="text-md font-semibold text-gray-800">Recommendations</h3>
     </div>
     <div class="space-y-3">
-      {% for rec in analysis.gemini_result.recommendations %}
+      {% for rec in ai_analysis.ai_result.recommendations %}
       <div class="bg-green-50 p-4 rounded-lg border border-green-100">
         <div class="flex items-start">
           <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
@@ -407,8 +412,8 @@
   </div>
   {% endif %}
 
-  <!-- Data Quality Score -->
-  {% if analysis.gemini_result.data_quality_score is defined %}
+
+  {% if ai_analysis.ai_result.data_quality_score is defined %}
   <div class="flex items-center justify-center">
     <div class="text-center">
       <h3 class="text-md font-semibold text-gray-800 mb-4">
@@ -417,10 +422,10 @@
       <div class="relative inline-flex items-center justify-center">
         <div
           class="radial-progress text-indigo-600"
-          style="--value:{{ analysis.gemini_result.data_quality_score }}; --size:10rem; --thickness: 1rem;"
+          style="--value:{{ ai_analysis.ai_result.data_quality_score }}; --size:10rem; --thickness: 1rem;"
         >
           <span class="text-2xl font-bold"
-            >{{ analysis.gemini_result.data_quality_score }}</span
+            >{{ ai_analysis.ai_result.data_quality_score }}</span
           >
         </div>
       </div>
@@ -428,12 +433,9 @@
   </div>
   {% endif %} {% endif %}
 </div>
+
 </div>
-
-
-
-
-
-      
-  </body>
+</body>
 </html>
+
+

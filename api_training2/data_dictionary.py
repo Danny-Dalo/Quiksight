@@ -3,6 +3,8 @@ import time
 from .file_path import data
 from .call_gemini import call_gemini_api, GEMINI_API_KEY
 
+
+
 def generate_data_dictionary(df, api_key, num_samples=3, delay=3):  # Added delay parameter
 
     sample_data = df.sample(min(num_samples, len(df)), random_state=42).to_dict(orient="records")

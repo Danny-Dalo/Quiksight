@@ -8,7 +8,8 @@ from .data_context import data_information
 from .data_dictionary import generate_data_dictionary
 from .call_gemini import call_gemini_api, GEMINI_API_KEY
 from .file_path import data
-
+import pandas as pd
+from app_quiksight.services.data_overview import _clean_value_for_json
 
 
 
@@ -21,7 +22,8 @@ def analyze_larger_dataframe(df, API_KEY=GEMINI_API_KEY, delay=2):
         # For large datasets (>10k rows), use 1% with min 5 and max 500 samples
         sample_size = max(min(int(0.01 * len(df)), 500), 5)
         dataset_sample = df.sample(sample_size, random_state=42).to_dict(orient="records")
-    
+
+
     
 
     # Generate data dictionary and context
