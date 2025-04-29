@@ -1,7 +1,6 @@
 import json
 import numpy as np
 import pandas as pd
-from .file_path import data
 
 def detect_outliers(df):
     """Detects outliers using IQR and Modified Z-score methods and returns outlier values."""
@@ -85,8 +84,3 @@ def data_information(df):
 
     return context
 
-
-
-# Convert to JSON string for API request
-json_dataset_context = json.dumps(data_information(data), indent=4)
-json_dataset_context

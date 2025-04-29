@@ -23,6 +23,7 @@
 
     
     <link rel="stylesheet" href="{{url_for( 'static', path='css/results.css')}}">
+    <link rel="stylesheet" href="{{url_for( 'static', path='js/results.js')}}">
     
   </head>
 
@@ -267,7 +268,7 @@
 
 
 
-<div class="card p-6 mt-6">
+<div class="card p-6 mt-6" id="ai_analysis_card">
   <div class="flex items-center mb-6">
     <div class="section-icon">
       <i class="fas fa-robot"></i>
@@ -422,20 +423,29 @@
       <div class="relative inline-flex items-center justify-center">
         <div
           class="radial-progress text-indigo-600"
-          style="--value:{{ ai_analysis.ai_result.data_quality_score }}; --size:10rem; --thickness: 1rem;"
+          style="--value:{{ ai_analysis.ai_result.data_quality_score.score }}; --size:10rem; --thickness: 1rem;"
         >
-          <span class="text-2xl font-bold"
-            >{{ ai_analysis.ai_result.data_quality_score }}</span
-          >
+          <span class="text-2xl font-bold">
+            {{ ai_analysis.ai_result.data_quality_score.score }}
+          </span>
         </div>
       </div>
+      <p class="mt-4 text-gray-600 text-sm">
+        {{ ai_analysis.ai_result.data_quality_score.justification }}
+      </p>
     </div>
   </div>
   {% endif %} {% endif %}
+  
 </div>
+
+
+
+
+
+
+
 
 </div>
 </body>
 </html>
-
-

@@ -25,7 +25,18 @@ def call_gemini_api(prompt, api_key, model_name="gemini-2.0-flash-thinking-exp-0
         
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(model_name)
-        response = model.generate_content(prompt)
+
+        generation_config = {
+            "temperature": 0.0,
+            # You can add other config parameters here if needed, e.g.:
+            # "top_p": 0.95,
+            # "top_k": 40,
+            # "max_output_tokens": 2048, # Example limit
+        }
+
+
+
+        response = model.generate_content(prompt, generation_config=generation_config)
         return response.text
     except Exception as e:
         print("Error calling Gemini API:", e)

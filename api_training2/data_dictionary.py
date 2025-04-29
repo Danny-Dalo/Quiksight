@@ -1,6 +1,5 @@
 import json
 import time
-from .file_path import data
 from .call_gemini import call_gemini_api, GEMINI_API_KEY
 
 
@@ -14,6 +13,8 @@ def generate_data_dictionary(df, api_key, num_samples=3, delay=3):  # Added dela
 
     **Sample Data:**
     {json.dumps(sample_data, indent=4)}
+    
+
 
     **Task:**
     - Identify what each column represents.
@@ -29,8 +30,8 @@ def generate_data_dictionary(df, api_key, num_samples=3, delay=3):  # Added dela
             "description": "Short explanation of what this column represents.",
             "type": "categorical/numerical/date/identifier",
             "data_type": "text/numeric/date/boolean",
-            "format": "e.g., YYYY-MM-DD for dates, 2 decimal places for floats",
-            "relationships": "Optional: Mention related columns if obvious"
+            format": "e.g., YYYY-MM-DD for dates, 2 decimal places for floats",
+            "relationships": "Optional: Mention related columns if obvious. keep it very short"
         }}
     }}
     """
@@ -56,14 +57,32 @@ def generate_data_dictionary(df, api_key, num_samples=3, delay=3):  # Added dela
         return None
 
 
-# Usage with delay
-data_dictionary = generate_data_dictionary(data, GEMINI_API_KEY, delay=2)
 
-if data_dictionary is not None:
-  Json_data_dictionary = json.dumps(data_dictionary)
-#   print(Json_data_dictionary)
-else:
-  print("❌ Failed to generate a valid data dictionary.")
 
-Json_data_dictionary = json.dumps(data_dictionary, indent=4)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# # Usage with delay
+# data_dictionary = generate_data_dictionary(df, GEMINI_API_KEY, delay=2)
+
+# if data_dictionary is not None:
+#   Json_data_dictionary = json.dumps(data_dictionary)
+# #   print(Json_data_dictionary)
+# else:
+#   print("❌ Failed to generate a valid data dictionary.")
+
+# Json_data_dictionary = json.dumps(data_dictionary, indent=4)
 

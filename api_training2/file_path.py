@@ -14,7 +14,6 @@ file_path = [
     "C:/Users/HP/Downloads/car_price_dataset_v51ysjG.csv"
 
 ]
-# df = pd.read_excel(file_path[3])
 data = pd.read_excel(file_path[0])
 
 

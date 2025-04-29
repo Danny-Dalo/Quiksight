@@ -11,7 +11,7 @@ load_dotenv(dotenv_path=ROOT_DIR / '.env')
 # Get the API key
 # GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_API_KEY = "AIzaSyB3Ft4l3D1qyQDXpcLjEE5QdKHNXF4o3Zc"
-print(f"GEMINI_API_KEY LOADED: {GEMINI_API_KEY}")
+print(f"API KEY LOADED")
 
 
 if not GEMINI_API_KEY:

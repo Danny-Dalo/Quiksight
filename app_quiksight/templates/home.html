@@ -14,14 +14,14 @@
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body>
+
     <form action="/api/upload" method="post" enctype="multipart/form-data" >
       <input type="file" name="file" class="file-input" accept=".csv, .xlsx, .xls" required/>
 
       <button class="btn">submit</button>
     </form>
-
     {% if error %}
-    <p class="text-red-500 mt-4">{{ error }}</p>
+    <p class="text-red-500 mt-4" style="font-weight: bold;">{{ error }}</p>
     {% endif %}
 
   </body>
