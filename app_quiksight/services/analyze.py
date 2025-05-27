@@ -6,7 +6,10 @@ import pandas as pd
 import io, json
 from ..services.data_overview import get_data_overview, _clean_value_for_json
 from ..services.missing_data_analysis import analyze_missing_data
+
+# ========================================================
 from api_training2.analyze_dataframe import analyze_larger_dataframe
+# ========================================================
 
 router = APIRouter()
 
@@ -27,6 +30,7 @@ def read_uploaded_file(file: UploadFile) -> pd.DataFrame:
         except UnicodeDecodeError:
             continue
     raise ValueError("Could not decode file")
+
 
 
 async def analyze_data(file: UploadFile):
@@ -60,23 +64,29 @@ async def analyze_data(file: UploadFile):
 
 
 
+# ================================================================
+
 async def run_ai_analysis(df: pd.DataFrame):
     try:
-        cleaned_df = df.map(lambda x: _clean_value_for_json(x))
+        cleaned_json_df = df.map(lambda x: _clean_value_for_json(x))
 
-
-        ai_result = analyze_larger_dataframe(cleaned_df)
+        ai_result = analyze_larger_dataframe(cleaned_json_df)
 
         if isinstance(ai_result, str):
-            ai_result = json.loads(ai_result)
+            ai_result = ai_result.strip()
+            if not ai_result:
+                return {"error": "AI returned an empty response"}
+            try:
+                ai_result = json.loads(ai_result)
+            except Exception as e:
+                return {"error": f"AI response is not valid JSON: {ai_result[:200]}... Error: {e}"}
 
         elif not isinstance(ai_result, dict):
-            return {"error": "Invalid AI result format"}
-        
+            return {"error": f"Invalid AI result format: {type(ai_result)}"}
+
         return {"ai_result": ai_result}
     except Exception as e:
         return {"error": f"AI analysis failed: {e}"}
-
 
 
 

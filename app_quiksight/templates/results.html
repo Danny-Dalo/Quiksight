@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/static/img/favicon.png">
     <title>Data Analysis Results</title>
     
      
@@ -412,36 +413,9 @@
     </div>
   </div>
   {% endif %}
+  {% endif %}
 
-
-  {% if ai_analysis.ai_result.data_quality_score is defined %}
-  <div class="flex items-center justify-center">
-    <div class="text-center">
-      <h3 class="text-md font-semibold text-gray-800 mb-4">
-        Data Quality Score
-      </h3>
-      <div class="relative inline-flex items-center justify-center">
-        <div
-          class="radial-progress text-indigo-600"
-          style="--value:{{ ai_analysis.ai_result.data_quality_score.score }}; --size:10rem; --thickness: 1rem;"
-        >
-          <span class="text-2xl font-bold">
-            {{ ai_analysis.ai_result.data_quality_score.score }}
-          </span>
-        </div>
-      </div>
-      <p class="mt-4 text-gray-600 text-sm">
-        {{ ai_analysis.ai_result.data_quality_score.justification }}
-      </p>
-    </div>
-  </div>
-  {% endif %} {% endif %}
-  
 </div>
-
-
-
-
 
 
 

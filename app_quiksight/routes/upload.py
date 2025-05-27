@@ -54,12 +54,11 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     
     # # It pauses the current function and executes the analyze_data function before returning the RedirectResponse
     # await keyword ensures that the upload_file function will remain paused until the analyze_data co-routine finishes executing and returns a result
-    # analysis_result = await analyze_data(uploaded_file)
-    # ai_analysis = await run_ai_analysis(uploaded_file)
+    analysis_result = await analyze_data(uploaded_file)
+    ai_analysis = await run_ai_analysis(uploaded_file)
 
 
     # ========================================================================================
-    analysis_result = await analyze_data(file)
     df = analysis_result.pop("df", None)
     ai_analysis = await run_ai_analysis(df) if df is not None else {"error": "No dataframe for AI analysis"}
 

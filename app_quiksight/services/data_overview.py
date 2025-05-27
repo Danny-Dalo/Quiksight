@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 
-
+# This is what displays initial information to users
 
 
 def _clean_value_for_json(value):
@@ -55,12 +55,12 @@ def get_data_overview(df: pd.DataFrame) -> Dict[str, Any]:
             "columns": df.shape[1],
             "rows": df.shape[0]
         },
-        "contains_missing": bool(df.isnull().values.any()), # Already safe
-        "column_data_types": _get_column_data_types(df),    # Already safe
-        "descriptive_stats": cleaned_stats,                 # Cleaned version
-        "table_head": cleaned_head,                         # Cleaned version
-        "unique_values": _get_unique_values(df),            # Already safe
-        "duplicate_count": int(df.duplicated().sum())       # Already safe
+        "contains_missing": bool(df.isnull().values.any()), 
+        "column_data_types": _get_column_data_types(df),    
+        "descriptive_stats": cleaned_stats,                 
+        "table_head": cleaned_head,                         
+        "unique_values": _get_unique_values(df),            
+        "duplicate_count": int(df.duplicated().sum())       
     }
 
 
@@ -71,7 +71,6 @@ def get_data_overview(df: pd.DataFrame) -> Dict[str, Any]:
 
 
 def _get_column_data_types(df: pd.DataFrame) -> List[Dict[str, str]]:
-    
     return [
         {"column_name": col, "data_type": str(dtype)}
         for col, dtype in df.dtypes.items()
@@ -81,7 +80,6 @@ def _get_column_data_types(df: pd.DataFrame) -> List[Dict[str, str]]:
 
 
 def _get_unique_values(df: pd.DataFrame) -> List[Dict[str, Any]]:
-    
     return [
         {"column_name": col, "unique_values": int(df[col].nunique())}
         for col in df.columns
@@ -89,10 +87,6 @@ def _get_unique_values(df: pd.DataFrame) -> List[Dict[str, Any]]:
 
 
 
-
-# def _get_descriptive_stats(df: pd.DataFrame) -> Dict[str, Dict[str, float]]:
-    
-#     return df.describe().to_dict()
 
 
 def _get_descriptive_stats(df: pd.DataFrame) -> Dict[str, Dict[str, float]]:

@@ -1,1 +1,0 @@
-This is the virtual environment containing all libraries and modules used in this project

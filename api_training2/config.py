@@ -15,5 +15,5 @@ print(f"API KEY LOADED")
 
 
 if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY is not set in the .env file. Please add your API key to the .env file.")
+    raise ValueError("GEMINI API KEY is not set in the .env file. Please add your API key to the .env file.")
 
