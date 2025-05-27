@@ -70,23 +70,16 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     # ANALYSIS
     # It pauses the current function and executes the analyze_data function and returns the result before returning the RedirectResponse
     analysis_result = await analyze_data(uploaded_file)
-    # process continues in the analyze.py file
-
-    # ANALYSIS
-    # It pauses the current function and executes the run_ai_analysis function before returning the RedirectResponse
-    ai_analysis = await run_ai_analysis(uploaded_file)
-
-        
-
-
-    # ========================================================================================
     df = analysis_result.pop("df", None)
+
+
+    # Takes the 'df' return value from analysis_result and passes it into run_ai_analysis function
     ai_analysis = await run_ai_analysis(df) if df is not None else {"error": "No dataframe for AI analysis"}
 
-    # ========================================================================================
     
 
-    # it unpauses and redirects the function after the await function has returned a value
+    # it unpauses upload_file function and redirects after the await functions have returned values
+    # This is all for the upload pae when the user clicks submit
     return RedirectResponse(url="/api/results", status_code=303)
 #     # =========================================================================
 

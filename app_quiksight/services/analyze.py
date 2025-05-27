@@ -1,15 +1,11 @@
 
 
-
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile
 import pandas as pd
 import io, json
 from ..services.data_overview import get_data_overview, _clean_value_for_json
 from ..services.missing_data_analysis import analyze_missing_data
-
-# ========================================================
 from api_training2.analyze_dataframe import analyze_larger_dataframe
-# ========================================================
 
 router = APIRouter()
 
@@ -17,6 +13,7 @@ router = APIRouter()
 MAX_ROWS_ALLOWED = 100000
 
 
+# This function reads the uploaded file and returns a pandas dataframe
 def read_uploaded_file(file: UploadFile) -> pd.DataFrame:
     encodings = ['utf-8', 'latin1', 'iso-8859-1', 'cp1252']
     raw = file.file.read()
@@ -30,6 +27,9 @@ def read_uploaded_file(file: UploadFile) -> pd.DataFrame:
         except UnicodeDecodeError:
             continue
     raise ValueError("Could not decode file")
+
+
+
 
 
 
