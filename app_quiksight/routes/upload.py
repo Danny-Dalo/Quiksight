@@ -18,44 +18,65 @@ uploaded_file = None
 
 
 
+# The /upload endpoint
+# Handles file uploads from the user.
+# Validates file type. If the file is valid, it assigns it to the uploaded_file variable.
+# Calls analyze_data (from analyze.py) for basic analysis of the file
+# Calls run_ai_analysis (from analyze.py) for AI analysis of the file
+# Redirects to the results page after the analysis is complete.
 
-
-
-@router.post("/upload", response_class=HTMLResponse)
+# will respond to file upload requests with a html response
+@router.post("/upload", response_class=HTMLResponse, 
+                    description='''
+                    # Handles file uploads from the user.
+                    # Validates file type. If the file is valid, it assigns it to the uploaded_file variable.
+                    # Calls analyze_data (from analyze.py) for basic analysis of the file
+                    # Calls run_ai_analysis (from analyze.py) for AI analysis of the file
+                    # Redirects to the results page after the analysis is complete.
+                    ''') 
+# The 'file' parameter receives the uploaded file from the user's form submission.
+# It is required (File(...)) and is of type UploadFile, which allows FastAPI to access the file's contents
 async def upload_file(request: Request, file: UploadFile = File(...)):
+    # we set the global variable uploaded_file to be the file that the user uploaded
     global uploaded_file
 
-
-    # ===============================================================================
-    if not file or file.filename == "":  # returns error message if file input is empty
+    # FILE VALIDATION
+    # if the file is not uploaded or the file name is empty, an error message is returned
+    if not file or file.filename == "":  
         return templates.TemplateResponse("home.html", {
             "request": request,
             "error": "Please upload a file before submitting."
         }) 
-    # ===============================================================================
 
     
-    # ========================================================================
+    # splits the file name(myfile.csv) into the file name(myfile) and the extension(csv)
     _, ext = os.path.splitext(file.filename.lower())
+
+    # FILE VALIDATION
+    # if the extension is not in the list of allowed extensions, an error message is returned
     if ext not in ALLOWED_EXTENSIONS:
         return templates.TemplateResponse("home.html", {
             "request": request,
             "error": f"Invalid file type. Only {', '.join(ALLOWED_EXTENSIONS)} extensions allowed."
-        })  # error message if file format is not supported
-    # =========================================================================
+        })  
     
 
 
-    # =========================================================================
 
-# after a proper file format has been accepted and confirmed
+    # the uploaded file is assigned to the uploaded_file variable after the file is validated
     uploaded_file = file
     global analysis_result, ai_analysis
     
-    # # It pauses the current function and executes the analyze_data function before returning the RedirectResponse
-    # await keyword ensures that the upload_file function will remain paused until the analyze_data co-routine finishes executing and returns a result
+    # ANALYSIS
+    # It pauses the current function and executes the analyze_data function and returns the result before returning the RedirectResponse
     analysis_result = await analyze_data(uploaded_file)
+    # process continues in the analyze.py file
+
+    # ANALYSIS
+    # It pauses the current function and executes the run_ai_analysis function before returning the RedirectResponse
     ai_analysis = await run_ai_analysis(uploaded_file)
+
+        
 
 
     # ========================================================================================
