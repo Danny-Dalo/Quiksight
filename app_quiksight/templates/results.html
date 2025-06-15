@@ -230,7 +230,7 @@
       <thead>
         <tr>
           {% for key in analysis.overview.table_head[0].keys() %}
-          <th class="font-medium">{{ key|title }}</th>
+          <th class="font-medium" title="{{ key|title }}">{{ key|title }}</th>
           {% endfor %}
         </tr>
       </thead>

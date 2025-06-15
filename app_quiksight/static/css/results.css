@@ -77,6 +77,32 @@ td {
   background: #f8f8f8;
   z-index: 10;
   box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+  max-width: 200px; /* Limit header width */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: help; /* Show that there's more text on hover */
+}
+
+/* Add tooltip for truncated headers */
+.table-container thead th:hover {
+  position: relative;
+}
+
+.table-container thead th:hover::after {
+  content: attr(title);
+  position: absolute;
+  left: 0;
+  top: 100%;
+  background: #333;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: normal;
+  max-width: 300px;
+  z-index: 1000;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 /* Optional: Add scrollbar styling */

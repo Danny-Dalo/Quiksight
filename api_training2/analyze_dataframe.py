@@ -9,27 +9,56 @@ from .call_gemini import call_gemini_api, GEMINI_API_KEY
 
 
 
-def analyze_larger_dataframe(df, API_KEY=GEMINI_API_KEY, delay=2):
-    if len(df) <= 1000:
-        # For small datasets (≤10k rows), use the entire dataset
-        dataset_sample = df.to_dict(orient="records")
-    else:
-        # For large datasets (>10k rows), use 1% with min 5 and max 500 samples
-        sample_size = max(min(int(0.001 * len(df)), 500), 5)
-        dataset_sample = df.sample(sample_size, random_state=42).to_dict(orient="records")
 
-
- 
-
-
+# DATA SAMPLING FUNCTION
+def sample_dataframe_for_ai(df, max_records=500):
+    # Initialize sampled rows as empty set
+    sampled_rows = set()
     
+    # 1. Include rows with NaNs to show missing data handling needs
+    nan_rows = df[df.isna().any(axis=1)]
+    sampled_rows.update(nan_rows.index[:5])  # Add up to 5
 
-    # Generate data dictionary and context
-    # Json_data_dictionary = generate_data_dictionary(df, API_KEY)
-    # if not Json_data_dictionary:
-    #     print("Error: Failed to generate data dictionary.")
-    #     return None
-    # - **Data Dictionary**: {json.dumps(Json_data_dictionary)}
+    # 2. For each column, sample:
+    for col in df.columns:
+        # a) Include most frequent value row
+        top_val = df[col].mode().iloc[0] if not df[col].mode().empty else None
+        if top_val is not None:
+            top_row_idx = df[df[col] == top_val].index[0]
+            sampled_rows.add(top_row_idx)
+
+        # b) Include rarest value row (if possible)
+        value_counts = df[col].value_counts()
+        if len(value_counts) > 0:
+            rare_val = value_counts.index[-1]
+            rare_row_idx = df[df[col] == rare_val].index[0]
+            sampled_rows.add(rare_row_idx)
+
+        # c) Add a few random rows per column to capture variety
+        random_rows = df.sample(min(2, len(df)), random_state=42).index
+        sampled_rows.update(random_rows)
+
+    # 3. Add overall random rows if total is still small
+    if len(sampled_rows) < max_records:
+        remaining = max_records - len(sampled_rows)
+        random_extra = df.drop(index=list(sampled_rows)).sample(
+            min(remaining, len(df) - len(sampled_rows)), random_state=42
+        ).index
+        sampled_rows.update(random_extra)
+
+    # Final sample
+    final_df = df.loc[list(sampled_rows)].copy()
+    return final_df.to_dict(orient="records")
+
+
+
+
+
+
+def analyze_larger_dataframe(df, API_KEY=GEMINI_API_KEY, delay=2):
+
+    dataset_sample = sample_dataframe_for_ai(df, max_records=500)
+
 
     json_dataset_context = data_information(df)
     if not json_dataset_context:
@@ -66,6 +95,14 @@ Examples include: misspellings, invalid mappings (e.g., wrong continent for a co
    ✔ Think critically. Only report issues that **matter in real-world usage**.  
    ❌ Do **not** make up issues just to fill space. If data is clean, state it confidently.
 
+   - **Date-Time Quality Check**
+  - Review all date-like fields for:
+    - Inconsistent or invalid formats (e.g., mixed `YYYY-MM-DD`, `DD/MM/YYYY`)
+    - Wrong data types (e.g., string instead of datetime)
+    - Unrealistic values (e.g., 1800s, 2100s, etc.)
+    - Misaligned date logic (e.g., future birth dates, negative durations)
+
+
 3. **Business Impact & Fix Suggestions**
    - For each issue, include:
      - **Impact**: What effect could this have on business analysis or decision-making?
@@ -73,6 +110,18 @@ Examples include: misspellings, invalid mappings (e.g., wrong continent for a co
 ---
 ### **Response Format**
 # Return a **clean, structured JSON** like this:
+
+
+### **Output Format Instructions:**
+
+- Return only **clean JSON**. Do NOT include markdown formatting like `**bold**`, `*italic*`, or code fences (no ```json or ```).
+- For all `"column"` values, return them as a **comma-separated string** if multiple columns are affected — e.g., `"column": "reporter name, partner name_adj"` instead of a list like `["..."]`.
+- Keep all values as simple strings — no lists, markdown, or extra syntax.
+- Each recommendation should be a simple string, no bullet points or asterisks.
+- Avoid any unnecessary formatting or noise — return raw, readable, clean JSON only.
+
+
+# Return JSON like:
 ```json
 {{
     "summary": "Short, clear overview of the dataset.",
@@ -96,9 +145,10 @@ Examples include: misspellings, invalid mappings (e.g., wrong continent for a co
                 "impact": "What this could affect in real-world use."
         }}]
     }},
-    "recommendations": [
-        "List practical suggestions to improve the data going forward."
-    ],
+    "recommendations": [{
+        "What are the best recommendations to fix the issues."
+    }],
+
 }}```
   """
 
