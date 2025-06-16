@@ -42,7 +42,7 @@
         </p>
       </div>
 
-
+<!-- SHOWS THE FILE INFORMATION OF THE DATAFRAME -->
 
 
       <div class="card mb-6 p-6">
@@ -79,7 +79,7 @@
 
 
 
-      
+<!-- SHOWS THE COLUMN INFORMATION OF THE DATAFRAME -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="wrappy">
         <div class="card p-6">
           <div class="flex items-center mb-4">
@@ -162,7 +162,7 @@
 
 
       
-
+<!-- SHOWS THE DESCRIPTIVE STATISTICS OF THE DATAFRAME -->
       {% if analysis.overview.descriptive_stats %}
 <div class="card p-6 mt-6">
   <div class="flex items-center mb-4">
@@ -216,7 +216,7 @@
    
 
 
-
+<!-- SHOWS THE FIRST 10 ROWS OF THE DATAFRAME -->
 <div class="card p-6 mt-6">
   <div class="flex items-center mb-4">
     <div class="section-icon">
@@ -268,7 +268,7 @@
 
 
 
-
+<!-- AI ANALYSIS RESULTS -->
 <div class="card p-6 mt-6" id="ai_analysis_card">
   <div class="flex items-center mb-6">
     <div class="section-icon">
@@ -308,7 +308,7 @@
       </h3>
     </div>
 
-
+<!-- CRITICAL ISSUES -->
     {% if ai_analysis.ai_result.issues.critical %}
     <div class="mb-4">
       <h4 class="text-sm font-medium text-red-600 mb-2">
@@ -335,8 +335,7 @@
     </div>
     {% endif %}
 
-    
-    
+    <!-- MODERATE ISSUES -->
     {% if ai_analysis.ai_result.issues.moderate %}
     <div class="mb-4">
       <h4 class="text-sm font-medium text-amber-600 mb-2">
@@ -368,7 +367,7 @@
 
 
 
-
+    <!-- MINOR ISSUES -->
     {% if ai_analysis.ai_result.issues.minor %}
     <div class="mb-4">
       <h4 class="text-sm font-medium text-blue-600 mb-2">Minor Issues</h4>
@@ -394,7 +393,7 @@
     {% endif %}
   </div>
 
-
+<!-- RECOMMENDATIONS -->
   {% if ai_analysis.ai_result.recommendations %}
   <div class="mb-8">
     <div class="flex items-center mb-4">
