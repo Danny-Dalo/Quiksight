@@ -17,69 +17,54 @@ uploaded_file = None
 
 
 
-
-# The /upload endpoint
-# Handles file uploads from the user.
-# Validates file type. If the file is valid, it assigns it to the uploaded_file variable.
-# Calls analyze_data (from analyze.py) for basic analysis of the file
-# Calls run_ai_analysis (from analyze.py) for AI analysis of the file
-# Redirects to the results page after the analysis is complete.
-
-# will respond to file upload requests with a html response
-@router.post("/upload", response_class=HTMLResponse, 
-                    description='''
-                    # Handles file uploads from the user.
-                    # Validates file type. If the file is valid, it assigns it to the uploaded_file variable.
-                    # Calls analyze_data (from analyze.py) for basic analysis of the file
-                    # Calls run_ai_analysis (from analyze.py) for AI analysis of the file
-                    # Redirects to the results page after the analysis is complete.
-                    ''') 
-# The 'file' parameter receives the uploaded file from the user's form submission.
-# It is required (File(...)) and is of type UploadFile, which allows FastAPI to access the file's contents
+@router.post("/upload", response_class=HTMLResponse)
 async def upload_file(request: Request, file: UploadFile = File(...)):
-    # we set the global variable uploaded_file to be the file that the user uploaded
+    #  file: UploadFile = File(...) tells fastAPI to expect an uploaded file and extract it's content
+    #  file: UploadFile just tells fastapi that it should expect an uploaded file
     global uploaded_file
 
-    # FILE VALIDATION
-    # if the file is not uploaded or the file name is empty, an error message is returned
-    if not file or file.filename == "":  
+
+    # ===============================================================================
+    if not file or file.filename == "":  # returns error message if file input is empty
         return templates.TemplateResponse("home.html", {
             "request": request,
             "error": "Please upload a file before submitting."
         }) 
+    # ===============================================================================
 
     
-    # splits the file name(myfile.csv) into the file name(myfile) and the extension(csv)
+    # ========================================================================
     _, ext = os.path.splitext(file.filename.lower())
-
-    # FILE VALIDATION
-    # if the extension is not in the list of allowed extensions, an error message is returned
     if ext not in ALLOWED_EXTENSIONS:
         return templates.TemplateResponse("home.html", {
             "request": request,
             "error": f"Invalid file type. Only {', '.join(ALLOWED_EXTENSIONS)} extensions allowed."
-        })  
+        })  # error message if file format is not supported
+    # =========================================================================
     
 
 
+    # =========================================================================
 
-    # the uploaded file is assigned to the uploaded_file variable after the file is validated
+# after a proper file format has been accepted and confirmed
     uploaded_file = file
     global analysis_result, ai_analysis
     
-    # ANALYSIS
-    # It pauses the current function and executes the analyze_data function and returns the result before returning the RedirectResponse
-    analysis_result = await analyze_data(uploaded_file)
+    # # It pauses runs the analyze_data function asynchronously before returning the RedirectResponse
+    # await keyword ensures that the upload_file function will remain paused until the analyze_data co-routine finishes executing and returns a result
+    # analysis_result = await analyze_data(uploaded_file)
+    # ai_analysis = await run_ai_analysis(uploaded_file)
+
+
+    # ========================================================================================
+    analysis_result = await analyze_data(file)
     df = analysis_result.pop("df", None)
-
-
-    # Takes the 'df' return value from analysis_result and passes it into run_ai_analysis function
     ai_analysis = await run_ai_analysis(df) if df is not None else {"error": "No dataframe for AI analysis"}
 
+    # ========================================================================================
     
 
-    # it unpauses upload_file function and redirects after the await functions have returned values
-    # This is all for the upload pae when the user clicks submit
+    # it unpauses and redirects the function after the await function has returned a value
     return RedirectResponse(url="/api/results", status_code=303)
 #     # =========================================================================
 
