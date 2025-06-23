@@ -93,7 +93,7 @@ Examples include: misspellings, invalid mappings (e.g., wrong continent for a co
    - **Minor Issues**: Mild inconsistencies (e.g., minor spelling errors, naming variations).
 
    ✔ Think critically. Only report issues that **matter in real-world usage**.  
-   ❌ Do **not** make up issues just to fill space. If data is clean, state it confidently.
+    Do **not** make up issues just to fill space. If data is clean, state it confidently.
 
    - **Date-Time Quality Check**
   - Review all date-like fields for:

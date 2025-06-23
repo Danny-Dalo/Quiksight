@@ -1,5 +1,4 @@
 
-
 import google.generativeai as genai
 import pandas as pd
 from .config import GEMINI_API_KEY
