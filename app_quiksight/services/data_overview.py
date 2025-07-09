@@ -26,6 +26,8 @@ def _clean_value_for_json(value):
         return bool(value)
     # Handle pandas Timestamp (convert to ISO format string)
     elif isinstance(value, pd.Timestamp):
+        if pd.isna(value): # Check if the timestamp is NaT
+            return None
         return value.isoformat()
     else:
         return value
