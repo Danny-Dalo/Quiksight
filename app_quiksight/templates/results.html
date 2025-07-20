@@ -24,6 +24,7 @@
 
     
     <link rel="stylesheet" href="{{url_for( 'static', path='css/results.css')}}">
+    <link rel="stylesheet" href="{{url_for( 'static', path='css/chat.css')}}">
     <link rel="stylesheet" href="{{url_for( 'static', path='js/results.js')}}">
     
   </head>
@@ -115,6 +116,9 @@
           </div>
         </div>
 
+
+
+
         <div class="card p-6">
           <div class="flex items-center mb-4">
             <div class="section-icon">
@@ -126,7 +130,7 @@
           </div>
           {% if analysis.missing_data.missing_data is defined %}
           {% if analysis.missing_data.missing_data is string %}
-          <div class="status-badge status-success">
+          <div class="status-badge status-success" style="text-align: center; font-size: 1rem;">
             {{ analysis.missing_data.missing_data }}
           </div>
           {% else %}
@@ -157,10 +161,6 @@
             </table>
           </div>
           {% endif %}
-          {% else %}
-          <div class="status-badge status-success">
-            No missing data found
-          </div>
           {% endif %}
         </div>
       </div>
@@ -386,24 +386,7 @@
   </div>
 
 
-  <!-- {% if ai_analysis.ai_result.recommendations %}
-  <div class="mb-8">
-    <div class="flex items-center mb-4">
-      <i class="fas fa-lightbulb text-indigo-600 mr-2"></i>
-      <h3 class="text-md font-semibold text-gray-800">Recommendations</h3>
-    </div>
-    <div class="space-y-3">
-      {% for rec in ai_analysis.ai_result.recommendations %}
-      <div class="bg-green-50 p-4 rounded-lg border border-green-100">
-        <div class="flex items-start">
-          <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
-          <p class="text-gray-700 text-sm">{{ rec }}</p>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %} -->
+  
   {% endif %}
 
 </div>
@@ -412,7 +395,7 @@
 
 
 
-
+<h1 style="color: red;">Style the chat container part so its not too wide</h1>
 
 <!-- CHAT WITH DATA SECTION  -->
 <section class="max-w-7xl mx-auto mt-12 mb-16 px-4">
@@ -420,49 +403,23 @@
   <div class="bg-white rounded-2xl shadow-lg p-8 flex flex-col gap-8">
     <!-- Chat history -->
     <div class="flex flex-col gap-4 max-h-96 overflow-y-auto" id="chat-history">
-      
-      <!-- User message (on the right) -->
-      <div class="flex items-end gap-4 flex-row-reverse">
-        <div class="flex-shrink-0">
-          <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg shadow">
-            <i class="fas fa-user"></i>
-          </div>
-        </div>
-        <div>
-          <div class="rounded-xl bg-blue-50 text-blue-900 px-6 py-3 shadow-sm max-w-2xl">
-            Separate date column into day, month, and year
-          </div>
-          <div class="text-xs text-gray-400 mt-1 mr-1 text-right">You • 10:01 AM</div>
-        </div>
-      </div>
+      <!-- This is where the message interaction between user and AI take place -->
     </div>
-    <!-- AI message (on the left) -->
-    <div class="flex items-end gap-4">
-      <div class="flex-shrink-0">
-        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-lg shadow">
-          <i class="fas fa-robot"></i>
-        </div>
-      </div>
-      <div>
-        <div class="text-gray-800 px-0 py-0 max-w-2xl">
-          Date column has been separated into day, month, and year.
-        </div>
-        <div class="text-xs text-gray-400 mt-1 ml-1">Quiksight AI • 10:01 AM</div>
-      </div>
-    </div>
+    
+    
+
+
     <!-- Chat input -->
-    <form class="flex items-center gap-2 mt-2" autocomplete="off">
+    <form class="flex items-center gap-2 mt-2" autocomplete="off" method="post" id="chat-form">
       <input
         type="text"
         class="flex-1 rounded-full border border-blue-200 focus:ring-2 focus:ring-blue-400 px-4 py-2 text-gray-800 bg-blue-50 placeholder-gray-400 transition"
-        placeholder="Type your question..."
-        id="chat-input"
-        disabled
+        placeholder="What do you want to do with your data?"
+        id="user-message"
       />
       <button
         type="submit"
         class="bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full px-5 py-2 font-semibold shadow hover:from-blue-600 hover:to-purple-600 transition"
-        disabled
       >
         <i class="fas fa-paper-plane"></i>
       </button>
@@ -478,3 +435,45 @@
 </div>
 </body>
 </html>
+
+
+<script>
+  const chatForm = document.getElementById('chat-form');
+  const userMessage = document.getElementById('user-message');
+  const chatHistory = document.getElementById('chat-history');
+
+  chatForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    let message = userMessage.value.trim();
+    if (!message) return;
+
+    chatHistory.innerHTML += `
+    <div class="flex justify-end">
+      <div class="user-bubble mr-3">
+        <span>${message}</span>
+      </div>
+    </div>
+  `;
+    userMessage.value = ""
+
+    let response = await fetch("/results/chat", {
+      method : "POST",
+      headers : {"Content-Type" : "application/json"},
+      body : JSON.stringify({ message })
+    })
+
+    let response_data = await response.json();
+    
+    let AIReply = response_data.reply;
+    chatHistory.innerHTML += `
+    <div class="flex justify-start">
+      <div class="ai-message max-w-[90%]">
+        <div class="ai-content">${AIReply}</div>
+      </div>
+    </div>
+  `;
+    chatHistory.scrollTop = chatHistory.scrollHeight; 
+
+    
+  });
+</script>

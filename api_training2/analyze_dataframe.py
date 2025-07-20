@@ -14,7 +14,7 @@ from .data_context import data_information
 # from .data_dictionary import generate_data_dictionary
 from .call_gemini import call_gemini_api, GEMINI_API_KEY
 
-
+import datetime
 def json_serializer(obj):
     """
     Custom JSON serializer for pandas and numpy objects.
@@ -32,13 +32,15 @@ def json_serializer(obj):
         TypeError: If object type is not supported
     """
     if isinstance(obj, (pd.Timestamp, pd.NaT.__class__)):
-        return obj.isoformat() if pd.notna(obj) else None #converts pandas timestamp to an ISO format string
+        return obj.isoformat() if pd.notna(obj) else None
     if isinstance(obj, (np.integer, np.int64)):
-        return int(obj) #converts numpy integer to an integer
+        return int(obj)
     if isinstance(obj, (np.floating, np.float64)):
-        return float(obj) #converts numpy float to a float
+        return float(obj)
     if isinstance(obj, np.ndarray):
-        return obj.tolist() #converts numpy array to a list
+        return obj.tolist()
+    if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+        return obj.isoformat()
     raise TypeError(f"Type {type(obj)} not serializable")
 
 
@@ -272,7 +274,7 @@ Examples include: misspellings, invalid mappings (e.g., wrong continent for a co
 
 
 
-    # "recommendations": ["What are the best recommendations to fix the issues."]
+
 
 
 
@@ -375,7 +377,8 @@ def _create_parse_error_response(response: str, error_msg: str) -> dict:
             "minor": []
         },
         "recommendations": ["Please review the raw AI response for manual analysis"],
-        "raw_response": response[:500] + "..." if len(response) > 500 else response,
+        "raw_response": response,
+        # "raw_response": response[:500] + "..." if len(response) > 500 else response,
         "parse_error": error_msg
     }
 

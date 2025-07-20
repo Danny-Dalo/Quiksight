@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from .routes import upload
+from .routes import upload, chat
 from .services import analyze
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -22,3 +22,4 @@ app.include_router(upload.router, prefix="/api", tags=["upload"])
 
 app.include_router(analyze.router, prefix="/api", tags=["analyze"])
 
+app.include_router(chat.router, tags=["chat"])

@@ -27,20 +27,12 @@ def analyze_missing_data(df: pd.DataFrame) -> Dict[str, Any]:
                 "missing_count": missing,
                 "missing_percentage": pct
             })
+            print(missing_columns_data)
 
+    if not missing_columns_data:
+        return {"missing_data" : "No missing data found"}
     return {"missing_data": missing_columns_data}
 
         
         
 
-        # safe division
-        # pct = round((missing / total) * 100, 2)
-
-        # result.append({
-        #     "column": col,
-        #     "missing_count": missing,
-        #     "missing_percentage": pct
-        # })
-    # ===================================================================================
-
-    # return {"missing_data": result}
