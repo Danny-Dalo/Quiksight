@@ -27,7 +27,7 @@ def analyze_missing_data(df: pd.DataFrame) -> Dict[str, Any]:
                 "missing_count": missing,
                 "missing_percentage": pct
             })
-            print(missing_columns_data)
+            
 
     if not missing_columns_data:
         return {"missing_data" : "No missing data found"}
