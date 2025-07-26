@@ -84,3 +84,68 @@ def data_information(df):
 
     return context
 
+
+
+
+
+
+def generate_summary_text(context):
+    summary_lines = []
+
+    # Dataset size
+    rows = context['dataset_size']['rows']
+    cols = context['dataset_size']['columns']
+    summary_lines.append(f"The uploaded dataset contains **{rows} rows** and **{cols} columns**.")
+
+    summary_lines.append("\n### Column Overview:")
+    for col, details in context['column_details'].items():
+        line = f"- `{col}`: type = {details['dtype']}, unique = {details['unique_values']}, "
+        line += f"missing = {details['missing_percentage']}%"
+        summary_lines.append(line)
+
+    # Duplicates
+    num_duplicates = len(context['duplicate_rows'])
+    if num_duplicates > 0:
+        summary_lines.append(f"\nThe dataset contains **{num_duplicates} duplicate rows**.")
+    else:
+        summary_lines.append("\nNo duplicate rows were found.")
+
+    # Missing summary
+    summary_lines.append("\n### Missing Values Summary:")
+    for col, mv in context["missing_values_summary"].items():
+        if mv['missing_count'] > 0:
+            summary_lines.append(
+                f"- `{col}`: {mv['missing_count']} missing values ({mv['missing_percentage']}%)"
+            )
+
+    # Numerical summary (describe stats)
+    num_stats = context['numerical_summary']
+    if num_stats:
+        summary_lines.append("\n### Numerical Column Statistics:")
+        for col, stats in num_stats.items():
+            if all(key in stats for key in ["mean", "std", "min", "max"]):
+                mean = round(stats["mean"], 3)
+                std = round(stats["std"], 3)
+                min_val = stats["min"]
+                max_val = stats["max"]
+                summary_lines.append(
+                    f"- `{col}`: mean = {mean}, std = {std}, min = {min_val}, max = {max_val}"
+                )
+
+    # Outlier Summary
+    outlier_info = context["outlier_summary"]
+    summary_lines.append("\n### Outliers Detected:")
+    for col, info in outlier_info.items():
+        percent = info["total_outlier_percentage"]
+        if percent > 0:
+            summary_lines.append(f"- `{col}`: {percent}% of values flagged as outliers")
+    
+    # Optional: Health summary
+    summary_lines.append("\n### Overall Data Quality Summary:")
+    missing_cols = [col for col, mv in context["missing_values_summary"].items() if mv["missing_percentage"] > 0]
+    has_outliers = any(v["total_outlier_percentage"] > 5 for v in outlier_info.values())
+    # status = "✅ Clean" if not missing_cols and not has_outliers else "🟡 Moderate Issues"
+    # summary_lines.append(f"**Status**: {status}")
+
+    return "\n".join(summary_lines)
+
