@@ -1,21 +1,22 @@
-"""
-Data Analysis Service Module
+# """
+# Data Analysis Service Module
 
-This module handles file uploads, data processing, and AI-powered data quality analysis.
-It provides functions to read various file formats, clean data, and generate insights.
-"""
+# This module handles file uploads, data processing, and AI-powered data quality analysis.
+# It provides functions to read various file formats, clean data, and generate insights.
+# """
 
 from fastapi import APIRouter, UploadFile
 import pandas as pd
 import io
+import csv
 import json
 from ..services.data_overview import get_data_overview, _clean_value_for_json
 from ..services.missing_data_analysis import analyze_missing_data
-from api_training2.analyze_dataframe import analyze_larger_dataframe
+from api_training2.data_context import generate_summary_text, data_information
 
 router = APIRouter()
 
-# Configuration
+# # Configuration
 MAX_ROWS_ALLOWED = 100000
 SUPPORTED_ENCODINGS = ['utf-8', 'latin1', 'iso-8859-1', 'cp1252']
 
@@ -62,7 +63,13 @@ def _read_csv_file(raw: bytes) -> pd.DataFrame:
     """
     for encoding in SUPPORTED_ENCODINGS:
         try:
-            return pd.read_csv(io.StringIO(raw.decode(encoding)))
+            return pd.read_csv(
+                io.StringIO(raw.decode(encoding)),
+                engine="python",  # <-- Switch from pyarrow to python
+                quotechar='"',
+                quoting=csv.QUOTE_MINIMAL,
+                skip_blank_lines=True,
+            )
         except UnicodeDecodeError:
             continue
     raise ValueError("Could not decode CSV file with any supported encoding")
@@ -124,6 +131,19 @@ def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     
     return df
 
+# def truncate_sample_row_values(rows: list, max_len: int = 100) -> list:
+#     truncated_rows = []
+#     for row in rows:
+#         truncated_row = {}
+#         for key, value in row.items():
+#             if isinstance(value, str) and len(value) > max_len:
+#                 truncated_row[key] = value[:max_len] + "..."  # Append ellipsis
+#             else:
+#                 truncated_row[key] = value
+#         truncated_rows.append(truncated_row)
+#     return truncated_rows
+
+
 
 async def analyze_data(file: UploadFile) -> dict:
     """
@@ -143,177 +163,184 @@ async def analyze_data(file: UploadFile) -> dict:
     except Exception as e:
         return {"error": f"File read failed: {e}"}
     
-    # Step 2: Validate file size
+    # Check file size
     if len(df) > MAX_ROWS_ALLOWED:
         return {
             "error": f"File exceeds the {MAX_ROWS_ALLOWED:,} row limit. Current rows: {len(df):,}"
         }
 
-    # Step 3: Clean and validate the data
+    # Clean and validate the data
     try:
         df = _clean_dataframe(df)
     except Exception as e:
         return {"error": f"Data cleaning failed: {e}"}
 
-    # Step 4: Generate data overview
+    # Generate data overview
     try:
         overview = get_data_overview(df)
     except Exception as e:
         overview = {"error": f"Overview generation failed: {e}"}
 
-    # Step 5: Analyze missing data
+    # Analyze missing data
     try:
         missing_data = analyze_missing_data(df)
     except Exception as e:
         missing_data = {"error": f"Missing data analysis failed: {e}"}
 
+
+        # Context to give the model
+    context = data_information(df)
+    sample_rows = df.sample(5).to_dict(orient="records")
+
     return {
         "overview": overview,
         "missing_data": missing_data,
+        "data_summary" : generate_summary_text(context),
         "df": df
     }
-
-
-async def run_ai_analysis(df: pd.DataFrame) -> dict:
-    """
-    Run AI-powered data quality analysis on the DataFrame.
     
-    This function prepares the data for AI analysis and handles various response formats
-    from the AI model, ensuring robust error handling.
+# # async def run_ai_analysis(df: pd.DataFrame) -> dict:
+# #     """
+# #     Run AI-powered data quality analysis on the DataFrame.
     
-    Args:
-        df (pd.DataFrame): Clean DataFrame to analyze
+# #     This function prepares the data for AI analysis and handles various response formats
+# #     from the AI model, ensuring robust error handling.
+    
+# #     Args:
+# #         df (pd.DataFrame): Clean DataFrame to analyze
         
-    Returns:
-        dict: AI analysis results or error information
-    """
-    try:
-        # Step 1: Clean data for JSON serialization
-        cleaned_df = df.map(lambda x: _clean_value_for_json(x))
+# #     Returns:
+# #         dict: AI analysis results or error information
+# #     """
+# #     try:
+# #         # Step 1: Clean data for JSON serialization
+# #         cleaned_df = df.map(lambda x: _clean_value_for_json(x))
         
-        # Step 2: Send to AI for analysis
-        ai_result = analyze_larger_dataframe(cleaned_df)
+# #         # Step 2: Send to AI for analysis
+# #         ai_result = analyze_larger_dataframe(cleaned_df)
         
-        # Step 3: Process AI response
-        return _process_ai_response(ai_result)
+# #         # Step 3: Process AI response
+# #         return _process_ai_response(ai_result)
         
-    except Exception as e:
-        return {"error": f"AI analysis failed: {e}"}
+
+# #     except Exception as e:
+# #         return {"error": f"AI analysis failed: {e}"}
 
 
-def _process_ai_response(ai_result) -> dict:
-    """
-    Process and validate the AI response, handling various formats.
+# # def _process_ai_response(ai_result) -> dict:
+# #     """
+# #     Process and validate the AI response, handling various formats.
     
-    Args:
-        ai_result: Raw response from AI analysis
+# #     Args:
+# #         ai_result: Raw response from AI analysis
         
-    Returns:
-        dict: Processed AI result or structured error response
-    """
-    # Handle string responses (most common)
-    if isinstance(ai_result, str):
-        return _process_string_response(ai_result)
+# #     Returns:
+# #         dict: Processed AI result or structured error response
+# #     """
+# #     # Handle string responses (most common)
+# #     if isinstance(ai_result, str):
+# #         return _process_string_response(ai_result)
     
-    # Handle dictionary responses (already processed)
-    elif isinstance(ai_result, dict):
-        return {"ai_result": ai_result}
+# #     # Handle dictionary responses (already processed)
+# #     elif isinstance(ai_result, dict):
+# #         return {"ai_result": ai_result}
     
-    # Handle unexpected response types
-    else:
-        return _create_error_response(
-            f"AI analysis completed but returned unexpected format: {type(ai_result)}",
-            str(ai_result)
-        )
+# #     # Handle unexpected response types
+# #     else:
+# #         return _create_error_response(
+# #             f"AI analysis completed but returned unexpected format: {type(ai_result)}",
+# #             str(ai_result),
+# #             print(ai_result)
+# #         )
 
 
-def _process_string_response(ai_result: str) -> dict:
-    """
-    Process AI response that comes as a string.
+# # def _process_string_response(ai_result: str) -> dict:
+# #     """
+# #     Process AI response that comes as a string.
     
-    Args:
-        ai_result (str): Raw string response from AI
+# #     Args:
+# #         ai_result (str): Raw string response from AI
         
-    Returns:
-        dict: Processed result or error response
-    """
-    # Clean the response
-    ai_result = ai_result.strip()
+# #     Returns:
+# #         dict: Processed result or error response
+# #     """
+# #     # Clean the response
+# #     ai_result = ai_result.strip()
     
-    # Check for empty response
-    if not ai_result:
-        return {"error": "AI returned an empty response"}
+# #     # Check for empty response
+# #     if not ai_result:
+# #         return {"error": "AI returned an empty response"}
     
-    # Try to parse as JSON
-    try:
-        parsed_result = json.loads(ai_result)
-        return {"ai_result": parsed_result}
-    except json.JSONDecodeError:
-        # If direct parsing fails, try to extract JSON
-        return _extract_json_from_response(ai_result)
+# #     # Try to parse as JSON
+# #     try:
+# #         parsed_result = json.loads(ai_result)
+# #         return {"ai_result": parsed_result}
+# #     except json.JSONDecodeError:
+# #         # If direct parsing fails, try to extract JSON
+# #         return _extract_json_from_response(ai_result)
 
 
-def _extract_json_from_response(response: str) -> dict:
-    """
-    Extract JSON object from a response that may contain extra text.
+# # def _extract_json_from_response(response: str) -> dict:
+# #     """
+# #     Extract JSON object from a response that may contain extra text.
     
-    Args:
-        response (str): Response that may contain JSON
+# #     Args:
+# #         response (str): Response that may contain JSON
         
-    Returns:
-        dict: Extracted JSON or error response
-    """
-    try:
-        # Find JSON object boundaries
-        start = response.find('{')
-        end = response.rfind('}') + 1
+# #     Returns:
+# #         dict: Extracted JSON or error response
+# #     """
+# #     try:
+# #         # Find JSON object boundaries
+# #         start = response.find('{')
+# #         end = response.rfind('}') + 1
         
-        if start != -1 and end > start:
-            json_str = response[start:end]
-            parsed_result = json.loads(json_str)
-            return {"ai_result": parsed_result}
-        else:
-            # No JSON object found
-            return _create_error_response(
-                "AI analysis completed but response format was unexpected",
-                response
-            )
-    except json.JSONDecodeError as e:
-        # JSON extraction failed
-        return _create_error_response(
-            "AI analysis completed but response could not be parsed as JSON",
-            response,
-            parse_error=str(e)
-        )
+# #         if start != -1 and end > start:
+# #             json_str = response[start:end]
+# #             parsed_result = json.loads(json_str)
+# #             return {"ai_result": parsed_result}
+# #         else:
+# #             # No JSON object found
+# #             return _create_error_response(
+# #                 "AI analysis completed but response format was unexpected",
+# #                 response
+# #             )
+# #     except json.JSONDecodeError as e:
+# #         # JSON extraction failed
+# #         return _create_error_response(
+# #             "AI analysis completed but response could not be parsed as JSON",
+# #             response,
+# #             parse_error=str(e)
+# #         )
 
 
-def _create_error_response(summary: str, raw_response: str, parse_error: str = None) -> dict:
-    """
-    Create a structured error response when AI analysis fails.
+# # def _create_error_response(summary: str, raw_response: str, parse_error: str = None) -> dict:
+# #     """
+# #     Create a structured error response when AI analysis fails.
     
-    Args:
-        summary (str): Summary of what went wrong
-        raw_response (str): Raw AI response for debugging
-        parse_error (str, optional): Specific parsing error details
+# #     Args:
+# #         summary (str): Summary of what went wrong
+# #         raw_response (str): Raw AI response for debugging
+# #         parse_error (str, optional): Specific parsing error details
         
-    Returns:
-        dict: Structured error response
-    """
-    error_response = {
-        "summary": summary,
-        "issues": {
-            "critical": [],
-            "moderate": [],
-            "minor": []
-        },
-        "recommendations": ["Please review the raw AI response for manual analysis"],
-        "raw_response": raw_response[:500] + "..." if len(raw_response) > 500 else raw_response
-    }
+# #     Returns:
+# #         dict: Structured error response
+# #     """
+# #     error_response = {
+# #         "summary": summary,
+# #         "issues": {
+# #             "critical": [],
+# #             "moderate": [],
+# #             "minor": []
+# #         },
+# #         "recommendations": ["Please review the raw AI response for manual analysis"],
+# #         "raw_response": raw_response[:500] + "..." if len(raw_response) > 500 else raw_response
+# #     }
     
-    if parse_error:
-        error_response["parse_error"] = parse_error
+# #     if parse_error:
+# #         error_response["parse_error"] = parse_error
     
-    return {"ai_result": error_response}
+# #     return {"ai_result": error_response}
 
 
 
