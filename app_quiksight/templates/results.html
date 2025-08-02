@@ -25,7 +25,6 @@
     
     <link rel="stylesheet" href="{{url_for( 'static', path='css/results.css')}}">
     <link rel="stylesheet" href="{{url_for( 'static', path='css/chat.css')}}">
-    <link rel="stylesheet" href="{{url_for( 'static', path='js/results.js')}}">
     
   </head>
 
@@ -78,9 +77,10 @@
         </div>
       </div>
 
+
         <!-- LOADING DATASET SUMMARY AND SAMPLE ROWS -->
       <p id="data-summary" hidden>{{analysis.data_summary}}</p>
-
+      <p id="sample-rows" hidden>{{ analysis.sample_rows | tojson }}</p>
 
 
 
@@ -93,6 +93,7 @@
 <section class="max-w-7xl mx-auto mt-12 mb-16 px-4">
   <h2 class="text-2xl font-bold text-center mb-6 text-blue-700">Chat</h2>
   <div class="bg-white rounded-2xl shadow-lg p-8 flex flex-col gap-8">
+
     <!-- Chat history -->
     <div class="flex flex-col gap-4 max-h-96 overflow-y-auto" id="chat-history-box">
       <!-- This is where the message interaction between user and AI take place -->
@@ -102,7 +103,7 @@
 
 
     <!-- Chat input -->
-    <form class="flex items-center gap-2 mt-2" autocomplete="off" method="post" id="chat-form">
+    <form class="flex items-center gap-2 mt-2" autocomplete="off" id="chat-form">
       <input
         type="text"
         class="flex-1 rounded-full border border-blue-200 focus:ring-2 focus:ring-blue-400 px-4 py-2 text-gray-800 bg-blue-50 placeholder-gray-400 transition"
@@ -116,74 +117,135 @@
         <i class="fas fa-paper-plane"></i>
       </button>
     </form>
-    <div class="text-xs text-gray-400 text-center mt-2">Live chat coming soon!</div>
+    
   </div>
 </section>
 
 
 
-
-
 </div>
+
 </body>
+
 </html>
 
-
 <script>
-  const chatForm = document.getElementById('chat-form');
-  const userMessage = document.getElementById('user-message');
-  const chatHistoryBox = document.getElementById('chat-history-box');
-  const dataSummary = document.getElementById('data-summary')?.textContent || "";
-  let messageHistory = []    //  ===================================================
 
-  chatForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    let message = userMessage.value.trim();
-    if (!message) return;
 
-    chatHistoryBox.innerHTML += `
+let chatForm = document.getElementById('chat-form');    //Form that triggers the sending of requests (chat) to the backend
+let userMessage = document.getElementById('user-message');  //The message sent by the user in the frontend that's taken to the backend
+let chatHistoryBox = document.getElementById('chat-history-box');   // displays the user and AI's conversation (works only on frontend)
+let dataSummary = document.getElementById('data-summary')?.textContent || "";
+let messageHistory = [];    // An array that tracks the conversation, for sending message context to the backend
+let sampleRows = [];
+
+// Safely parse sample rows. We parse JSON to convert it from a regular JSON string to a data structure that a program can actually unserstand. e.g from JSON to python dictionary or javascript array
+try {
+  sampleRows = JSON.parse(document.getElementById('sample-rows')?.textContent || "[]");
+} catch (e) {
+  console.error("Failed to parse sample rows:", e);
+  sampleRows = [];
+}
+
+chatForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  let message = userMessage.value.trim();
+  if (!message) return;
+
+  // Add user message to chat
+  chatHistoryBox.innerHTML += `
     <div class="flex justify-end">
       <div class="user-bubble mr-3">
-        <span>${message}</span>
+        <span>${escapeHtml(message)}</span>
+      </div>
+    </div>
+  `; 
+  // escapeHtml() protects your chat app from being hacked via malicious HTML or scripts. Always sanitize input before injecting into innerHTML. It replaces regular HTML script symbols like '>', '"' with characters so that attackers can't alter HTML and input comes out as plain text
+  userMessage.value = "";
+
+
+
+  messageHistory.push({role: "user", content: message});
+  
+
+  // Add loading indicator
+  const loadingId = 'loading-' + Date.now();
+  chatHistoryBox.innerHTML += `
+    <div class="flex justify-start" id="${loadingId}">
+      <div class="ai-message max-w-[90%]">
+        <div class="ai-content">
+          <i class="fas fa-spinner fa-spin"></i> Thinking...
+        </div>
       </div>
     </div>
   `;
-    userMessage.value = ""
-    messageHistory.push({role : "user", content : message})   //  ==================================================
 
-
-
-    // Sending user message and data summary to backend
-    let response = await fetch("/results/chat", {
-      method : "POST",
-      headers : {"Content-Type" : "application/json"},
-      body : JSON.stringify({
+  try {
+    // Send request to backend
+    const response = await fetch("/results/chat", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
         message: message,
         data_summary: dataSummary,
-        message_history : messageHistory,   //  ===============================================
-        
+        message_history: messageHistory,
+        sample_rows: sampleRows
       })
-    })
-    let response_data = await response.json();
-    
-    
+    });
 
+    // Remove loading indicator
+    document.getElementById(loadingId)?.remove();
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const responseData = await response.json();
+    // The .reply in responseData.reply is the same name as what the backend returns: "reply": f"AI service error: {str(e)}"
+    const AIReply = responseData.reply || "Sorry, I couldn't process your request.";
     
-    let AIReply = response_data.reply;
+    // Add AI response to chat
     chatHistoryBox.innerHTML += `
-    <div class="flex justify-start">
-      <div class="ai-message max-w-[90%]">
-        <div class="ai-content">${AIReply}</div>
+      <div class="flex justify-start">
+        <div class="ai-message max-w-[90%]">
+          <div class="ai-content">${AIReply}</div>
+        </div>
       </div>
-    </div>`;
+    `;
 
-    messageHistory.push({role : "assistant", content : AIReply})    //  ===============================================
-
-
-    chatHistoryBox.scrollTop = chatHistoryBox.scrollHeight; 
-
+    messageHistory.push({role: "assistant", content: AIReply});
     
-  });
+    console.log(messageHistory)
+
+  } catch (error) {                         // The catch statement gets any error that shows up and 
+    console.error("Chat error:", error);
+    
+    // Remove loading indicator
+    document.getElementById(loadingId)?.remove();
+    
+    // Add error message
+    chatHistoryBox.innerHTML += `
+      <div class="flex justify-start">
+        <div class="ai-message max-w-[90%] bg-red-50 border-red-200">
+          <div class="ai-content text-red-700">
+            <i class="fas fa-exclamation-triangle"></i> 
+            Error: ${error.message}. Please try again.
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Scroll to bottom
+  chatHistoryBox.scrollTop = chatHistoryBox.scrollHeight;
+});
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
 </script>
 
 
@@ -212,188 +274,5 @@
 
 
 
-<!--       
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="wrappy">
-        <div class="card p-6">
-          <div class="flex items-center mb-4">
-            <div class="section-icon">
-              <i class="fas fa-table"></i>
-            </div>
-            <h2 class="text-lg font-semibold text-gray-800">
-              Column Information
-            </h2>
-          </div>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Column Name</th>
-                  <th>Data Type</th>
-                  <th>Unique Values</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for col in analysis.overview.column_data_types %} {% set
-                unique =
-                analysis.overview.unique_values|selectattr("column_name",
-                "equalto", col.column_name)|first %}
-                <tr>
-                  <td>{{ col.column_name }}</td>
-                  <td>{{ col.data_type }}</td>
-                  <td>{{ unique.unique_values }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
 
 
-
-
-        <div class="card p-6">
-          <div class="flex items-center mb-4">
-            <div class="section-icon">
-              <i class="fas fa-exclamation-triangle"></i>
-            </div>
-            <h2 class="text-lg font-semibold text-gray-800">
-              Missing Data Analysis
-            </h2>
-          </div>
-          {% if analysis.missing_data.missing_data is defined %}
-          {% if analysis.missing_data.missing_data is string %}
-          <div class="status-badge status-success" style="text-align: center; font-size: 1rem;">
-            {{ analysis.missing_data.missing_data }}
-          </div>
-          {% else %}
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Column</th>
-                  <th>Missing Count</th>
-                  <th>Missing %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for item in analysis.missing_data.missing_data %}
-                <tr>
-                  <td>{{ item.column }}</td>
-                  <td>{{ item.missing_count }}</td>
-                  <td>
-                    <span
-                      class="status-badge {% if item.missing_percentage > 20 %}status-error{% elif item.missing_percentage > 5 %}status-warning{% else %}status-success{% endif %}"
-                    >
-                      {{ item.missing_percentage }}%
-                    </span>
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          {% endif %}
-          {% endif %}
-        </div>
-      </div>
-
-
-
-      
-
-      {% if analysis.overview.descriptive_stats %}
-<div class="card p-6 mt-6">
-  <div class="flex items-center mb-4">
-    <div class="section-icon">
-      <i class="fas fa-calculator"></i>
-    </div>
-    <h2 class="text-lg font-semibold text-gray-800">
-      Descriptive Statistics
-    </h2>
-  </div>
-  <div class="table-container">
-    <table>
-      <thead>
-        <tr>
-          <th class="font-medium sticky-col first-col">Metric</th>
-          {% for column in analysis.overview.descriptive_stats.keys() %}
-          <th class="font-medium">{{ column }}</th>
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for stat in ['count', 'mean', 'std', 'min', '25%', '50%',
-        '75%', 'max'] %}
-        <tr>
-          <td class="font-medium text-gray-700 sticky-col first-col">
-            {% if stat == 'std' %} Standard Deviation {% elif stat ==
-            'min' %} Minimum {% elif stat == 'max' %} Maximum {% elif stat
-            == '25%' %} 25th Percentile {% elif stat == '50%' %} Median {%
-            elif stat == '75%' %} 75th Percentile {% else %} {{ stat|title
-            }} {% endif %}
-          </td>
-          {% for column in analysis.overview.descriptive_stats.keys() %}
-          <td class="text-gray-600">
-            {% set value =
-            analysis.overview.descriptive_stats[column][stat] %} {% if
-            value is not none %} {% if stat in ['count'] %} {{ value|int
-            }} {% else %} {{ value|round(2) }} {% endif %} {% else %}
-            <span class="text-gray-400">N/A</span>
-            {% endif %}
-          </td>
-          {% endfor %}
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-{% endif %}
-
-
-   
-
-
-
-<div class="card p-6 mt-6">
-  <div class="flex items-center mb-4">
-    <div class="section-icon">
-      <i class="fas fa-table"></i>
-    </div>
-    <h2 class="text-lg font-semibold text-gray-800">Data Preview</h2>
-    <span class="ml-2 text-sm text-gray-500">(First 10 Rows)</span>
-  </div>
-  <div class="table-container">
-    <table>
-      <thead>
-        <tr>
-          {% for key in analysis.overview.table_head[0].keys() %}
-          <th class="font-medium" title="{{ key|title }}">{{ key|title }}</th>
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in analysis.overview.table_head %}
-        <tr>
-          {% for value in row.values() %}
-          <td class="text-gray-600">
-            {% if value is none %}
-              <span class="text-gray-400">N/A</span>
-            {% elif value is number %}
-              {% if value|round(0) == value %}
-                {{ value|int }}
-              {% else %}
-                {{ value|round(2) }}
-              {% endif %}
-            {% else %}
-              {{ value }}
-            {% endif %}
-          </td>
-          {% endfor %}
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-</div> -->

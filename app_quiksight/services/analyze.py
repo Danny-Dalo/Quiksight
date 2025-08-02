@@ -9,6 +9,7 @@ from fastapi import APIRouter, UploadFile
 import pandas as pd
 import io
 import csv
+import numpy as np
 import json
 from ..services.data_overview import get_data_overview, _clean_value_for_json
 from ..services.missing_data_analysis import analyze_missing_data
@@ -131,17 +132,48 @@ def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     
     return df
 
-# def truncate_sample_row_values(rows: list, max_len: int = 100) -> list:
-#     truncated_rows = []
-#     for row in rows:
-#         truncated_row = {}
-#         for key, value in row.items():
-#             if isinstance(value, str) and len(value) > max_len:
-#                 truncated_row[key] = value[:max_len] + "..."  # Append ellipsis
-#             else:
-#                 truncated_row[key] = value
-#         truncated_rows.append(truncated_row)
-#     return truncated_rows
+
+
+
+from datetime import datetime, date
+
+def clean_value_for_json(value):
+    """Clean a value to make it JSON serializable"""
+    if pd.isna(value) or value is None:
+        return None
+    elif isinstance(value, (np.integer, np.int64, np.int32)):
+        return int(value)
+    elif isinstance(value, (np.floating, np.float64, np.float32)):
+        if np.isnan(value) or np.isinf(value):
+            return None
+        return float(value)
+    elif isinstance(value, (datetime, date)):
+        return value.isoformat()
+    elif isinstance(value, np.bool_):
+        return bool(value)
+    elif isinstance(value, bytes):
+        return value.decode('utf-8', errors='ignore')
+    elif isinstance(value, str):
+        return value
+    else:
+        return str(value)
+
+def truncate_sample_row_values(rows: list, max_len: int = 100) -> list:
+    """Truncate and clean sample row values for JSON serialization"""
+    truncated_rows = []
+    for row in rows:
+        truncated_row = {}
+        for key, value in row.items():
+            # First clean the value for JSON serialization
+            cleaned_value = clean_value_for_json(value)
+            
+            # Then truncate if it's a string
+            if isinstance(cleaned_value, str) and len(cleaned_value) > max_len:
+                truncated_row[key] = cleaned_value[:max_len] + "..."
+            else:
+                truncated_row[key] = cleaned_value
+        truncated_rows.append(truncated_row)
+    return truncated_rows
 
 
 
@@ -190,162 +222,19 @@ async def analyze_data(file: UploadFile) -> dict:
 
         # Context to give the model
     context = data_information(df)
-    sample_rows = df.sample(5).to_dict(orient="records")
+    
+    # ==================================================================================
+    sample_rows = df.sample(min(len(df), 5)).to_dict(orient="records")
+    sample_rows = truncate_sample_row_values(sample_rows)
+    # ==================================================================================
 
     return {
         "overview": overview,
         "missing_data": missing_data,
         "data_summary" : generate_summary_text(context),
+        # ==================================================================================
+        "sample_rows" : sample_rows,
+        # ==================================================================================
         "df": df
     }
     
-# # async def run_ai_analysis(df: pd.DataFrame) -> dict:
-# #     """
-# #     Run AI-powered data quality analysis on the DataFrame.
-    
-# #     This function prepares the data for AI analysis and handles various response formats
-# #     from the AI model, ensuring robust error handling.
-    
-# #     Args:
-# #         df (pd.DataFrame): Clean DataFrame to analyze
-        
-# #     Returns:
-# #         dict: AI analysis results or error information
-# #     """
-# #     try:
-# #         # Step 1: Clean data for JSON serialization
-# #         cleaned_df = df.map(lambda x: _clean_value_for_json(x))
-        
-# #         # Step 2: Send to AI for analysis
-# #         ai_result = analyze_larger_dataframe(cleaned_df)
-        
-# #         # Step 3: Process AI response
-# #         return _process_ai_response(ai_result)
-        
-
-# #     except Exception as e:
-# #         return {"error": f"AI analysis failed: {e}"}
-
-
-# # def _process_ai_response(ai_result) -> dict:
-# #     """
-# #     Process and validate the AI response, handling various formats.
-    
-# #     Args:
-# #         ai_result: Raw response from AI analysis
-        
-# #     Returns:
-# #         dict: Processed AI result or structured error response
-# #     """
-# #     # Handle string responses (most common)
-# #     if isinstance(ai_result, str):
-# #         return _process_string_response(ai_result)
-    
-# #     # Handle dictionary responses (already processed)
-# #     elif isinstance(ai_result, dict):
-# #         return {"ai_result": ai_result}
-    
-# #     # Handle unexpected response types
-# #     else:
-# #         return _create_error_response(
-# #             f"AI analysis completed but returned unexpected format: {type(ai_result)}",
-# #             str(ai_result),
-# #             print(ai_result)
-# #         )
-
-
-# # def _process_string_response(ai_result: str) -> dict:
-# #     """
-# #     Process AI response that comes as a string.
-    
-# #     Args:
-# #         ai_result (str): Raw string response from AI
-        
-# #     Returns:
-# #         dict: Processed result or error response
-# #     """
-# #     # Clean the response
-# #     ai_result = ai_result.strip()
-    
-# #     # Check for empty response
-# #     if not ai_result:
-# #         return {"error": "AI returned an empty response"}
-    
-# #     # Try to parse as JSON
-# #     try:
-# #         parsed_result = json.loads(ai_result)
-# #         return {"ai_result": parsed_result}
-# #     except json.JSONDecodeError:
-# #         # If direct parsing fails, try to extract JSON
-# #         return _extract_json_from_response(ai_result)
-
-
-# # def _extract_json_from_response(response: str) -> dict:
-# #     """
-# #     Extract JSON object from a response that may contain extra text.
-    
-# #     Args:
-# #         response (str): Response that may contain JSON
-        
-# #     Returns:
-# #         dict: Extracted JSON or error response
-# #     """
-# #     try:
-# #         # Find JSON object boundaries
-# #         start = response.find('{')
-# #         end = response.rfind('}') + 1
-        
-# #         if start != -1 and end > start:
-# #             json_str = response[start:end]
-# #             parsed_result = json.loads(json_str)
-# #             return {"ai_result": parsed_result}
-# #         else:
-# #             # No JSON object found
-# #             return _create_error_response(
-# #                 "AI analysis completed but response format was unexpected",
-# #                 response
-# #             )
-# #     except json.JSONDecodeError as e:
-# #         # JSON extraction failed
-# #         return _create_error_response(
-# #             "AI analysis completed but response could not be parsed as JSON",
-# #             response,
-# #             parse_error=str(e)
-# #         )
-
-
-# # def _create_error_response(summary: str, raw_response: str, parse_error: str = None) -> dict:
-# #     """
-# #     Create a structured error response when AI analysis fails.
-    
-# #     Args:
-# #         summary (str): Summary of what went wrong
-# #         raw_response (str): Raw AI response for debugging
-# #         parse_error (str, optional): Specific parsing error details
-        
-# #     Returns:
-# #         dict: Structured error response
-# #     """
-# #     error_response = {
-# #         "summary": summary,
-# #         "issues": {
-# #             "critical": [],
-# #             "moderate": [],
-# #             "minor": []
-# #         },
-# #         "recommendations": ["Please review the raw AI response for manual analysis"],
-# #         "raw_response": raw_response[:500] + "..." if len(raw_response) > 500 else raw_response
-# #     }
-    
-# #     if parse_error:
-# #         error_response["parse_error"] = parse_error
-    
-# #     return {"ai_result": error_response}
-
-
-
-
-
-
-
-
