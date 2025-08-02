@@ -2,7 +2,7 @@ import os
 from fastapi import UploadFile, File
 from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
-from app_quiksight.services.analyze import analyze_data, run_ai_analysis
+from app_quiksight.services.analyze import analyze_data
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 ALLOWED_EXTENSIONS = [".csv", ".xlsx", ".xls"]
@@ -19,8 +19,6 @@ uploaded_file = None
 
 @router.post("/upload", response_class=HTMLResponse)
 async def upload_file(request: Request, file: UploadFile = File(...)):
-    #  file: UploadFile = File(...) tells fastAPI to expect an uploaded file and extract it's content
-    #  file: UploadFile just tells fastapi that it should expect an uploaded file
     global uploaded_file
 
 
@@ -48,23 +46,17 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
 
 # after a proper file format has been accepted and confirmed
     uploaded_file = file
-    global analysis_result, ai_analysis
+    global analysis_result
     
-    # # It pauses runs the analyze_data function asynchronously before returning the RedirectResponse
-    # await keyword ensures that the upload_file function will remain paused until the analyze_data co-routine finishes executing and returns a result
-    # analysis_result = await analyze_data(uploaded_file)
-    # ai_analysis = await run_ai_analysis(uploaded_file)
 
 
     # ========================================================================================
     analysis_result = await analyze_data(file)
     df = analysis_result.pop("df", None)
-    ai_analysis = await run_ai_analysis(df) if df is not None else {"error": "No dataframe for AI analysis"}
 
     # ========================================================================================
     
 
-    # it unpauses and redirects the function after the await function has returned a value
     return RedirectResponse(url="/api/results", status_code=303)
 #     # =========================================================================
 
@@ -102,16 +94,6 @@ async def results(request: Request):
                 "error": analysis_result.get("error", "Unknown analysis error"),
             },
         )
-    if "ai_result" not in ai_analysis:
-        # if for some reason or error "overview" dict is not returned, it stays at the home page and displays an error message
-        return templates.TemplateResponse(
-            "home.html",
-            {
-                "request": request,
-                "error": ai_analysis.get("error", "ai result is not found bro"),
-            },
-        )
-        # ==============================================================================================
 
 
     # it then returns the results.html page
@@ -123,8 +105,7 @@ async def results(request: Request):
     return templates.TemplateResponse("results.html", {
         "request": request, 
         "file": uploaded_file,
-        "analysis": analysis_result,
-        "ai_analysis" : ai_analysis
+        "analysis": analysis_result
     })
 
 
