@@ -18,8 +18,7 @@ async def home(request : Request):
     return templates.TemplateResponse("home.html", {"request" : request})
 
 
-app.include_router(upload.router, prefix="/api", tags=["upload"])
+app.include_router(upload.router, prefix="/chat", tags=["upload"])
 
-app.include_router(analyze.router, prefix="/api", tags=["analyze"])
 
 app.include_router(chat.router, tags=["chat"])
