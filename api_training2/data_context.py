@@ -2,6 +2,9 @@ import json
 import numpy as np
 import pandas as pd
 
+
+
+
 def detect_outliers(df):
     """Detects outliers using IQR and Modified Z-score methods and returns outlier values."""
     outlier_summary = {}
@@ -124,10 +127,19 @@ def generate_summary_text(context):
         summary_lines.append("\n### Numerical Column Statistics:")
         for col, stats in num_stats.items():
             if all(key in stats for key in ["mean", "std", "min", "max"]):
-                mean = round(stats["mean"], 3)
-                std = round(stats["std"], 3)
+                mean = stats["mean"]
+                std = stats["std"]
                 min_val = stats["min"]
                 max_val = stats["max"]
+
+                # Check for Timestamp
+                if isinstance(mean, pd.Timestamp):
+                    mean = mean.strftime("%Y-%m-%d")
+                    std = "N/A"
+                else:
+                    mean = round(mean, 3)
+                    std = round(std, 3)
+
                 summary_lines.append(
                     f"- `{col}`: mean = {mean}, std = {std}, min = {min_val}, max = {max_val}"
                 )

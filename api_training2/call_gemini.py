@@ -1,6 +1,5 @@
-
-import google.generativeai as genai
 from .config import GEMINI_API_KEY
+import google.generativeai as genai
 
 system_instruction = (
     "### ROLE & GOAL ###\n"
