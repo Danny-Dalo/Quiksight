@@ -5,6 +5,9 @@ node_modules/
 package-lock.json
 yarn.lock
 
+# TODO files
+.todo
+
 # Testing
 /coverage
 .nyc_output
