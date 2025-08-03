@@ -57,7 +57,8 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     # ========================================================================================
     
 
-    return RedirectResponse(url="/api/results", status_code=303)
+
+    return RedirectResponse(url="/chat/results", status_code=303)
 #     # =========================================================================
 
 

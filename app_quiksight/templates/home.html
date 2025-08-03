@@ -32,7 +32,7 @@
     <!-- Hero Section -->
     <section class="flex flex-col items-center text-center mt-8 mb-6 px-4">
       <span class="badge badge-info badge-lg mb-4"
-        >AI Powered Data Cleaning</span
+        >🫠🫠</span
       >
       <h1 class="text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
         Fix Messy Data. <span class="text-blue-600">Just Ask.</span>
@@ -42,52 +42,17 @@
         data.
       </p>
       <!-- Upload Box -->
-      <div class="w-full max-w-xl">
-        <form
-          action="/api/upload"
-          method="post"
-          enctype="multipart/form-data"
-          class="bg-white border-2 border-dashed border-blue-200 rounded-xl p-8 flex flex-col items-center shadow-md hover:shadow-lg transition-shadow duration-200"
-        >
-          <label
-            for="file-upload"
-            class="flex flex-col items-center cursor-pointer"
-          >
-            <div class="text-blue-500 mb-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-12 w-12 mx-auto"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"
-                />
-              </svg>
-            </div>
-            <span class="font-semibold text-gray-700"
-              >Drop your CSV or Excel file here</span
-            >
-            <span class="text-gray-400 text-sm mb-2"
-              >or click to browse files</span
-            >
-            <input
-              id="file-upload"
-              type="file"
-              name="file"
-              class="hidden"
-              accept=".csv, .xlsx, .xls"
-              required
-            />
-            <span class="text-xs text-gray-400"
-              >Supports .csv, .xlsx, and .xls files up to 30MB</span
-            >
+      
+      <div>
+        <form style="border: solid 1px red;" action="/chat/upload" method="post" enctype="multipart/form-data">
+        
+
+          <label for="file-upload">
+            <input id="file-upload" type="file" name="file" accept=".csv, .xlsx, .xls" required/>
           </label>
-          <button class="btn btn-primary mt-6 w-full">Upload</button>
+
+          <button style="border: solid 2px blue;">Upload</button>
+          
         </form>
         {% if error %}
         <p class="text-red-500 mt-4 font-bold">{{ error }}</p>
@@ -167,222 +132,6 @@
 
 
  
-
-
-    
-
-
-   
-
-
-
-
-
-
-
-
-
-
-    <!-- Why Choose Quiksight -->
-    <!-- <section class="max-w-6xl mx-auto mt-8 mb-16 px-4">
-      <h2 class="text-2xl font-bold text-center mb-8">Why choose Quiksight?</h2>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div
-          class="flex flex-col gap-2 items-center bg-white rounded-xl p-6 shadow"
-        >
-          <span class="text-blue-500"
-            ><svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 17v-2a4 4 0 014-4h2a4 4 0 014 4v2"
-              /></svg
-          ></span>
-          <span class="font-semibold">Save Hours of Manual Work</span>
-          <span class="text-gray-500 text-sm text-center"
-            >Automate data cleaning tasks that typically take hours or days to
-            complete manually.</span
-          >
-        </div>
-        <div
-          class="flex flex-col gap-2 items-center bg-white rounded-xl p-6 shadow"
-        >
-          <span class="text-blue-500"
-            ><svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3z"
-              /></svg
-          ></span>
-          <span class="font-semibold">Intelligent Error Detection</span>
-          <span class="text-gray-500 text-sm text-center"
-            >Our AI identifies inconsistencies, duplicates, and formatting
-            issues you might miss.</span
-          >
-        </div>
-        <div
-          class="flex flex-col gap-2 items-center bg-white rounded-xl p-6 shadow"
-        >
-          <span class="text-blue-500"
-            ><svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M5 13l4 4L19 7"
-              /></svg
-          ></span>
-          <span class="font-semibold">Natural Language Interface</span>
-          <span class="text-gray-500 text-sm text-center"
-            >No complex formulas or coding required. Just tell the AI what you
-            need in plain English.</span
-          >
-        </div>
-        <div
-          class="flex flex-col gap-2 items-center bg-white rounded-xl p-6 shadow"
-        >
-          <span class="text-purple-500"
-            ><svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3z"
-              /></svg
-          ></span>
-          <span class="font-semibold">Enterprise-Grade Security</span>
-          <span class="text-gray-500 text-sm text-center"
-            >Your data is processed securely and never stored longer than
-            necessary.</span
-          >
-        </div>
-        <div
-          class="flex flex-col gap-2 items-center bg-white rounded-xl p-6 shadow"
-        >
-          <span class="text-purple-500"
-            ><svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 17v-2a4 4 0 014-4h2a4 4 0 014 4v2"
-              /></svg
-          ></span>
-          <span class="font-semibold">Multiple Export Formats</span>
-          <span class="text-gray-500 text-sm text-center"
-            >Download your cleaned data in CSV, Excel, or JSON formats for any
-            workflow.</span
-          >
-        </div>
-        <div
-          class="flex flex-col gap-2 items-center bg-white rounded-xl p-6 shadow"
-        >
-          <span class="text-purple-500"
-            ><svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M5 13l4 4L19 7"
-              /></svg
-          ></span>
-          <span class="font-semibold">Batch Processing</span>
-          <span class="text-gray-500 text-sm text-center"
-            >Clean multiple files at once with consistent rules and
-            transformations.</span
-          >
-        </div>
-      </div>
-    </section> -->
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    <!-- Call to Action -->
-    <!-- <section
-      class="w-full bg-gradient-to-r from-blue-500 to-purple-500 py-12 flex flex-col items-center"
-    >
-      <h2 class="text-3xl font-bold text-white mb-4">
-        Ready to clean your data?
-      </h2>
-      <p class="text-white mb-6 text-lg">
-        Join thousands of data professionals who trust Quiksight to prepare
-        their datasets faster and more accurately.
-      </p>
-      <a href="/signup" class="btn btn-lg btn-accent">Start Free Trial</a>
-    </section> -->
-
-    <!-- Footer -->
-    <!-- <footer
-      class="flex items-center justify-between px-6 py-4 bg-transparent mt-auto"
-    >
-      <div class="flex items-center gap-2">
-        <img
-          src="/static/img/favicon.png"
-          alt="Quiksight Logo"
-          class="w-6 h-6"
-        />
-        <span class="font-semibold text-gray-500">Quiksight</span>
-      </div>
-      <div class="flex gap-4 text-gray-400 text-sm">
-        <a href="#" class="hover:underline">Privacy</a>
-        <a href="#" class="hover:underline">Terms</a>
-        <a href="#" class="hover:underline">Support</a>
-      </div>
-    </footer> -->
-
 
 
   </body>
