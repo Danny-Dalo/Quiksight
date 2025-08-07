@@ -14,11 +14,19 @@ templates = Jinja2Templates(directory="app_quiksight/templates")
 
 # by default uploaded file is none as no one has uploaded anything
 uploaded_file = None 
+uploaded_dataframe = None
 
 
-
+# /chat/upload ==============WHAT HAPPENS WHEN A USER CLICKS THE SUBMIT BUTTON AFTER A FILE HAS BEEN UPLOADED
 @router.post("/upload", response_class=HTMLResponse)
 async def upload_file(request: Request, file: UploadFile = File(...)):
+    # UploadFile: A class used by FastAPI to handle uploaded files. It's a file-like object that gives you access to the file's contents, filename, and other metadata.
+    # file: UploadFile = File(...): This is the core of the file upload mechanism.
+    # The parameter is named file.
+    # Its type hint is UploadFile, which tells FastAPI to expect an uploaded file.
+    # The File(...) part is the key: it instructs FastAPI to look for a file in the incoming request body and inject it into this function as an UploadFile object.
+    # They need to come together
+    # the type hint defines the expected data structure, and the dependency injector defines how to retrieve that data from the incoming request
     global uploaded_file
 
 
@@ -33,6 +41,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     
     # ========================================================================
     _, ext = os.path.splitext(file.filename.lower())
+    # matches.csv returns (matches, csv)
     if ext not in ALLOWED_EXTENSIONS:
         return templates.TemplateResponse("home.html", {
             "request": request,
@@ -44,20 +53,23 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
 
     # =========================================================================
 
-# after a proper file format has been accepted and confirmed
+    # after a proper file format has been accepted and confirmed, store the file that has been uploaded into the uploaded_file variable
     uploaded_file = file
+    
+    
+
+
+    # ========================================================================================
     global analysis_result
-    
-
-
-    # ========================================================================================
-    analysis_result = await analyze_data(file)
+    analysis_result = await analyze_data(file)  # The return values(s) of the analyze_data() function, which takes in our uploaded file, is stored in analysis_result
     df = analysis_result.pop("df", None)
-
-    # ========================================================================================
+# =========================================================
+    global uploaded_dataframe
+    uploaded_dataframe = df
+# ========================================================================================
     
 
-
+    # Returns a redirect response to the next Uniform Resource Locator(URL) enpoint
     return RedirectResponse(url="/chat/results", status_code=303)
 #     # =========================================================================
 
@@ -110,3 +122,7 @@ async def results(request: Request):
     })
 
 
+
+# Get the current state of the uploaded dataframe
+def get_uploaded_dataframe():
+    return uploaded_dataframe
