@@ -3,7 +3,10 @@ from fastapi.responses import JSONResponse
 from api_training2.call_gemini import call_gemini_api, GEMINI_API_KEY
 import json
 import logging      # The logging library is Python’s built-in module for tracking events that happen when software runs.
-
+import pandas as pd
+# =================call function to get uploaded dataframe
+from app_quiksight.routes.upload import get_uploaded_dataframe
+ 
 
 
 # Set up logging
@@ -138,13 +141,16 @@ async def chat(request: Request, API_KEY: str = GEMINI_API_KEY):
         # Parse the response
         chat_reply, needs_code, code_task = parse_ai_response(ai_response)
         
+        # =====================================================
         code_snippet = None
+        result_preview = None
+        # =====================================================
         if needs_code and code_task:
             logger.info(f"Code needed. Task: {code_task}")
             
             # Generate ONLY pandas code based on the task
             code_prompt = f"""
-                Generate clean, efficient pandas code for this task:
+                Generate clean, safe, and efficient pandas code for this task:
 
                 TASK: {code_task}
                 USER REQUEST: {user_message}
@@ -154,27 +160,36 @@ async def chat(request: Request, API_KEY: str = GEMINI_API_KEY):
                 - Store final result in variable 'result' 
                 - Use proper pandas methods
                 - Include error handling where appropriate
-                - Add brief comments for complex operations
 
                 Dataset context:
                 {data_summary}
 
-                Return ONLY the Python code in a markdown code block, no explanations.
+                Return ONLY the Python code in a markdown code block, no explanations, no comments.
             """
             
+
             logger.info("Generating code snippet")
+            # API  call just for generating code
             code_snippet = call_gemini_api(code_prompt, api_key=API_KEY)
+            print("==========GENERATED CODE==========")
+            print(code_snippet)
             
-            
+            # Clean markdown formatting
             if code_snippet.startswith("```python"):
                 code_snippet = code_snippet.replace("```python", "").replace("```", "").strip()
+
+
+           
         
         
         response_data = {
             "reply": chat_reply,
-            "code": code_snippet,
-            "needs_code": needs_code,
-            "code_task": code_task if needs_code else None
+            # "code": code_snippet,
+            # "needs_code": needs_code,
+            # "code_task": code_task if needs_code else None,
+            # ==================================================================
+            "code_result": result_preview if needs_code else None
+            # ==================================================================
         }
         
         logger.info(f"Response prepared: NEEDS_CODE={needs_code}, HAS_CODE={code_snippet is not None}")
