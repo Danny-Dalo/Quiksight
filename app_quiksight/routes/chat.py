@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# =================================================================================
+working_df_store = {"working_df" : None}
+# =================================================================================
 
 
 
@@ -160,6 +163,7 @@ async def chat(request: Request, API_KEY: str = GEMINI_API_KEY):
                 - Store final result in variable 'result' 
                 - Use proper pandas methods
                 - Include error handling where appropriate
+                - Don't use comments or code explanations, just execute the code
 
                 Dataset context:
                 {data_summary}
@@ -171,12 +175,53 @@ async def chat(request: Request, API_KEY: str = GEMINI_API_KEY):
             logger.info("Generating code snippet")
             # API  call just for generating code
             code_snippet = call_gemini_api(code_prompt, api_key=API_KEY)
-            print("==========GENERATED CODE==========")
-            print(code_snippet)
+            
             
             # Clean markdown formatting
             if code_snippet.startswith("```python"):
                 code_snippet = code_snippet.replace("```python", "").replace("```", "").strip()
+                print("======================GENERATED CODE=====================================")
+                print(code_snippet)
+                print("======================GENERATED CODE=====================================")
+            
+
+               
+             # ==============================# EXECUTING THE GENERATED CODE===================================
+                try:
+                    # Reuse or initialize working_df =========================================================
+                    if working_df_store["working_df"] is not None:
+                        working_df = working_df_store["working_df"]
+                    else:
+                        original_df = get_uploaded_dataframe()
+                        if original_df is None:
+                            raise HTTPException(status_code=500, detail="No uploaded data found. Please re-upload your dataset.")
+                        working_df = original_df.copy()
+                    # ================STORING THE WORKING DATAFRAME WHERE THE CHANGES WILL BE MADE ============
+
+
+                    local_vars = {"df": working_df}
+                    print("===================WORKING DATAFRAME BEFORE MODIFICATION======================")
+                    print(local_vars["df"].head())
+                    print("===================WORKING DATAFRAME BEFORE MODIFICATION======================")
+                    exec(code_snippet, {}, local_vars)
+                    result = local_vars.get("result", None)
+                    # Update the working_df with result if it's a DataFrame
+                    if isinstance(result, pd.DataFrame):
+                        working_df_store["working_df"] = result
+                        result_preview = result.head().to_dict(orient="records")
+                        print("==============WORKING DATAFRAME PREIVEW (Dataframe)=====================")
+                        print(result_preview)
+                        print("==============WORKING DATAFRAME PREIVEW=====================")
+                    else:
+                        result_preview = str(result)
+                        print("==============WORKING DATAFRAME PREIVEW (String)=====================")
+                        print(result_preview)
+                        print("==============WORKING DATAFRAME PREIVEW=====================")
+
+                except Exception as e:
+                    logger.error(f"Code execution failed: {e}")
+                    result_preview = f"Error executing code: {str(e)}"
+                # ======================================================================================
 
 
            
@@ -184,12 +229,7 @@ async def chat(request: Request, API_KEY: str = GEMINI_API_KEY):
         
         response_data = {
             "reply": chat_reply,
-            # "code": code_snippet,
-            # "needs_code": needs_code,
-            # "code_task": code_task if needs_code else None,
-            # ==================================================================
             "code_result": result_preview if needs_code else None
-            # ==================================================================
         }
         
         logger.info(f"Response prepared: NEEDS_CODE={needs_code}, HAS_CODE={code_snippet is not None}")
@@ -203,9 +243,18 @@ async def chat(request: Request, API_KEY: str = GEMINI_API_KEY):
         return JSONResponse(
             status_code=500,
             content={
-                "reply": "Sorry, I encountered an error processing your request. Please try again.",
-                "code": None,
-                "needs_code": False,
-                "code_task": None
+                "reply": "Sorry, I encountered an error processing your request. Please try again."
             }
         )
+
+
+
+
+
+
+
+# Resetting the working dataframe back to default (no changes made)
+@router.post("/results/reset")
+async def reset_working_dataframe():
+    working_df_store["working_df"] = None
+    return {"message": "Working dataframe has been reset."}
