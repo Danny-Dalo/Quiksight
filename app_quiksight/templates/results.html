@@ -77,6 +77,60 @@
         </div>
       </div>
 
+      <!-- VRHFIHBJEV VVFNEJBVIBJVIHVBJK VFEIOHFVJIVHNVNFNVDSVNDKDNVNKDVNDKNKDVNKVNKVKNDVKVNKNDV -->
+             
+     
+   
+
+
+    <div class="card p-6 mt-6">
+  <div class="flex items-center mb-4">
+    <div class="section-icon">
+      <i class="fas fa-table"></i>
+    </div>
+    <h2 class="text-lg font-semibold text-gray-800">Data Preview</h2>
+    <span class="ml-2 text-sm text-gray-500">(First 10 Rows)</span>
+  </div>
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          {% for key in analysis.overview.table_head[0].keys() %}
+          <th class="font-medium" title="{{ key|title }}">{{ key|title }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in analysis.overview.table_head %}
+        <tr>
+          {% for value in row.values() %}
+          <td class="text-gray-600">
+            {% if value is none %}
+              <span class="text-gray-400">N/A</span>
+            {% elif value is number %}
+              {% if value|round(0) == value %}
+                {{ value|int }}
+              {% else %}
+                {{ value|round(2) }}
+              {% endif %}
+            {% else %}
+              {{ value }}
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+    </div>
+</div>
+
+      <!-- VRHFIHBJEV VVFNEJBVIBJVIHVBJK VFEIOHFVJIVHNVNFNVDSVNDKDNVNKDVNDKNKDVNKVNKVKNDVKVNKNDV -->
+
+
+
+
 
         <!-- LOADING DATASET SUMMARY AND SAMPLE ROWS -->
       <p id="data-summary" hidden>{{analysis.data_summary}}</p>
@@ -126,7 +180,6 @@
 </div>
 
 </body>
-
 </html>
 
 <script>
@@ -180,6 +233,7 @@ chatForm.addEventListener('submit', async (e) => {
     </div>
   `;
 
+  // SENDING USER MESSAGE AND DATA INFORMATION TO CHAT ENDPOINT ====================================
   try {
     // Send request to backend
     const response = await fetch("/results/chat", {
@@ -192,17 +246,23 @@ chatForm.addEventListener('submit', async (e) => {
         sample_rows: sampleRows
       })
     });
+    // SENDING USER MESSAGE AND DATA INFORMATION TO CHAT ENDPOINT ====================================
+      
 
-    // Remove loading indicator
+
+    // Remove loading indicator after data has hit chat endpoint
     document.getElementById(loadingId)?.remove();
-
+    // Error handling if the sending of data has an error for any reason========================
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
+    // Error handling if the sending of data has an error for any reason========================
 
+    // responseData is the variable containing the API response sent back after it has received and pprocessed a request (response)
     const responseData = await response.json();
     // The .reply in responseData.reply is the same name as what the backend returns: "reply": f"AI service error: {str(e)}"
     const AIReply = responseData.reply || "Sorry, I couldn't process your request.";
+    const codeResult = responseData.code_result || []
     
     // Add AI response to chat
     chatHistoryBox.innerHTML += `
@@ -212,6 +272,8 @@ chatForm.addEventListener('submit', async (e) => {
         </div>
       </div>
     `;
+      
+
 
     messageHistory.push({role: "assistant", content: AIReply});
     
