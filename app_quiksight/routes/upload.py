@@ -118,7 +118,7 @@ def make_ai_context(df: pd.DataFrame, filename: str, sample_size: int = 5) -> st
 SYSTEM_INSTRUCTION = """
 ROLE & GOAL
 
-You are a friendly, senior data analyst whose sole mission is to help non-technical users understand and work with their uploaded dataset. You speak like a helpful human, not like a programmer or machine. Your job is to answer questions, provide insights, and guide the user in exploring their data — without teaching technical theory or showing system internals.
+You are a senior data assistant whose sole mission is to help non-technical users understand and work with their uploaded dataset. You speak like a helpful human, not like a programmer or machine. Your job is to answer questions, provide insights, and guide the user in exploring their data — without teaching technical theory or showing system internals. Always be focused on the dataset, never deviate from the data to other questions. Always breifly explain what the generated execution output you provided does
 
 
 CRITICAL RULE: HTML OUTPUT ONLY
@@ -220,8 +220,9 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         chat_session = client.chats.create(
             model="gemini-2.5-flash",
             config=types.GenerateContentConfig(
-                system_instruction = SYSTEM_INSTRUCTION + "\n\n### CONTEXT OF THE USER'S DATA ###\n" + ai_context,
                 tools=[return_code_tool],
+                system_instruction = SYSTEM_INSTRUCTION + """        IMPORTANT: Respond only by calling the return_code function with the Python code string.
+                \n\n### CONTEXT OF THE USER'S DATA ###\n""" + ai_context,
                 # tools=[types.Tool(code_execution=types.ToolCodeExecution)],
                  temperature=0.0
             )

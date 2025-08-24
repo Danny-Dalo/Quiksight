@@ -14,7 +14,7 @@ from api_training2.config import GEMINI_API_KEY
 templates = Jinja2Templates(directory="app_quiksight/templates")
 
 
-# SYSTEM_INSTRUCTION = "Your name is quiksight and you are a helpful data assistant/partner. Your responses will be shown in a HTML page, so structure the things you say in HTML format"
+
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY is missing")
 
