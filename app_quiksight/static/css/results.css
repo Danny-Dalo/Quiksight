@@ -1,20 +1,4 @@
-body {
-  font-family: "Inter", sans-serif;
-  background-color: #fafafa;
-}
-.card {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  border: 1px solid #f0f0f0;
-}
-.section-icon {
-  color: #6366f1;
-  background: #f5f5ff;
-  padding: 8px;
-  border-radius: 8px;
-  margin-right: 12px;
-}
+
 table {
   width: 100%;
   border-collapse: separate;

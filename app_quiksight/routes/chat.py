@@ -1,260 +1,177 @@
-from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import JSONResponse
-from api_training2.call_gemini import call_gemini_api, GEMINI_API_KEY
-import json
-import logging      # The logging library is Python’s built-in module for tracking events that happen when software runs.
-import pandas as pd
-# =================call function to get uploaded dataframe
-from app_quiksight.routes.upload import get_uploaded_dataframe
- 
 
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from fastapi import APIRouter, HTTPException, Request
+import traceback
+from fastapi.responses import HTMLResponse, RedirectResponse
+from pydantic import BaseModel
+from fastapi.templating import Jinja2Templates
+import os
+from google import genai
+from google.genai import types
+from .upload import session_store   # import to use the generated session ID from upload
+from api_training2.config import GEMINI_API_KEY
+
+templates = Jinja2Templates(directory="app_quiksight/templates")
+
+
+# SYSTEM_INSTRUCTION = "Your name is quiksight and you are a helpful data assistant/partner. Your responses will be shown in a HTML page, so structure the things you say in HTML format"
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY is missing")
 
 router = APIRouter()
 
-# =================================================================================
-working_df_store = {"working_df" : None}
-# =================================================================================
 
 
 
-def parse_ai_response(response: str):
-    """
-    Parses AI response in the format:
-    CHAT_RESPONSE: ...
-    NEEDS_CODE: YES/NO
-    CODE_TASK: ... (what the code should accomplish)
-    """
-    lines = response.strip().split('\n')
-    chat_response, needs_code, code_task = '', 'NO', ''
+
+
+@router.get("/chat", response_class = HTMLResponse)
+async def chat_page(request : Request, sid : str):
+
+
     
-    for line in lines:
-        line = line.strip()  # Remove extra whitespace
-        if line.startswith("CHAT_RESPONSE:"):
-            # Extract everything after "CHAT_RESPONSE:" and remove leading/trailing spaces
-            chat_response = line[len("CHAT_RESPONSE:"):].strip()
-        elif line.startswith("NEEDS_CODE:"):
-            # Extract YES/NO value
-            needs_code = line[len("NEEDS_CODE:"):].strip()
-        elif line.startswith("CODE_TASK:"):
-            # Extract what the code should accomplish
-            code_task = line[len("CODE_TASK:"):].strip()
+    if sid not in session_store:    # at this point, session store has now been populated
+        return RedirectResponse(url="/", status_code=303)
+
     
-    # Convert string to boolean for easier handling
-    return chat_response, needs_code.upper() == "YES", code_task
+    
+    session_data = session_store[sid]
+    dataframe = session_data["df"]
+    filename = session_data["file_name"]
+    filesize = session_data["file_size"]
+    file_extension = os.path.splitext(filename)[1]
+
+    upload_date = session_data["upload_date"]
+    upload_time = session_data["upload_time"]
+    columns = session_data["columns"]
+
+
+    
+
+
+    return templates.TemplateResponse("chat.html", {
+        "request" : request,
+        "session_id" : sid,
+
+        # File information
+        "file_name": filename,
+        "file_size" : filesize,
+        "file_extension": file_extension,
+        "upload_date": upload_date,
+        "upload_time": upload_time,
+        "num_rows" : len(dataframe),
+        "num_columns" : len(dataframe.columns),
+        "columns" : columns,
+
+        "preview_rows" : session_data["preview_rows"]
+    })
+
+
+
+import pandas as pd
+import numpy as np
+import sys, io
+from pandas.io.formats.style import Styler
 
 
 
 
 
-@router.post("/results/chat")
-async def chat(request: Request, API_KEY: str = GEMINI_API_KEY):
+
+
+import contextlib
+
+def execute_user_code(code: str, df: pd.DataFrame):
+    """Executes AI-generated code safely in a limited environment and returns its output."""
+
+    # Prepare isolated execution environment
+    local_env = {
+        "df": df,
+        "pd": pd,
+        "np": np,
+        # add any utility functions here
+    }
+
+    # Capture stdout and stderr
+    stdout_buffer = io.StringIO()
+    stderr_buffer = io.StringIO()
+
     try:
-        logger.info("Received chat request")
-        
-        # Parse request data
-        try:
-            data = await request.json()
-            logger.info(f"Request data keys: {list(data.keys())}")
-        except Exception as e:
-            logger.error(f"Failed to parse JSON: {e}")
-            raise HTTPException(status_code=400, detail="Invalid JSON in request body")
-        
-        # Extract data from post request and provide defaults for them
-        data_summary = data.get("data_summary", "")
-        message_history = data.get("message_history", [])
-        sample_rows = data.get("sample_rows", [])
-        
-       
-        if not data_summary:
-            return JSONResponse(
-                status_code=400,
-                content={"reply": "No data summary provided. Make sure you have uploaded a dataset."}
-            )
-        
-        # converting sample rows to JSON string
-        try:
-            sample_rows_text = json.dumps(sample_rows[:5], indent=2, default=str)
-        except Exception as e:
-            logger.error(f"Failed to serialize sample_rows: {e}")
-            sample_rows_text = "Error serializing sample data"
-        
-        # Get the user's last message
-        user_message = message_history[-1]["content"] if message_history else ""
-        logger.info(f"USER LAST MESSAGE: {user_message}")
-        
-        
-        conversation_context = ""
-        if len(message_history) > 1:
-            # Include last few messages for context (limit to avoid token overflow)
-            recent_messages = message_history[-3:-1]  # Except the current message
-            for msg in recent_messages:
-                role = msg.get("role", "user")
-                content = msg.get("content", "")
-                conversation_context += f"{role.title()}: {content}\n"
-        
-        
-        prompt = f"""
-            You are a data analysis assistant. Analyze the user's request and respond in this EXACT format:
+        with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(stderr_buffer):
+            exec(code, {}, local_env)
 
-            CHAT_RESPONSE: [Write your helpful response to the user here]
-            NEEDS_CODE: [Write exactly "YES" or "NO"]
-            CODE_TASK: [If NEEDS_CODE is YES, write exactly what the Python code should accomplish]
+        output = stdout_buffer.getvalue().strip()
+        errors = stderr_buffer.getvalue().strip()
 
-            IMPORTANT FORMATTING RULES:
-            - Each label must be on its own line
-            - Use exactly these labels: CHAT_RESPONSE, NEEDS_CODE, CODE_TASK
-            - For NEEDS_CODE, use only "YES" or "NO" (not "yes", "no", "true", "false")
-            - If NEEDS_CODE is NO, you can leave CODE_TASK empty
+        return {
+            "success": True,
+            "output": output if output else "(No output produced)",
+            "error": errors if errors else None
+        }
 
-            Guidelines for when to use NEEDS_CODE: YES:
-            - Data filtering, sorting, grouping operations
-            - Statistical calculations, aggregations
-            - Data transformations or cleaning
-            - Creating visualizations or charts
-            - Mathematical computations on the data
-
-            Use NEEDS_CODE: NO for:
-            - General questions about the data
-            - Explanations or interpretations
-            - Questions about methodology
-            - Requests for advice or recommendations
-
-            Dataset Summary:
-            {data_summary}
-
-            Sample Data (first 5 rows):
-            {sample_rows_text}
-
-            Recent Conversation:
-            {conversation_context}
-
-            Current User Message: {user_message}
-
-            Remember: Be specific in CODE_TASK about what operation should be performed on the dataframe 'df'.
-            """
-
-        # Single API call to get the structured response
-        logger.info("Making initial API call to determine response and code needs")
-        ai_response = call_gemini_api(prompt, api_key=API_KEY)
-        
-        # Parse the response
-        chat_reply, needs_code, code_task = parse_ai_response(ai_response)
-        
-        # =====================================================
-        code_snippet = None
-        result_preview = None
-        # =====================================================
-        if needs_code and code_task:
-            logger.info(f"Code needed. Task: {code_task}")
-            
-            # Generate ONLY pandas code based on the task
-            code_prompt = f"""
-                Generate clean, safe, and efficient pandas code for this task:
-
-                TASK: {code_task}
-                USER REQUEST: {user_message}
-
-                Requirements:
-                - Input dataframe is named 'df'
-                - Store final result in variable 'result' 
-                - Use proper pandas methods
-                - Include error handling where appropriate
-                - Don't use comments or code explanations, just execute the code
-
-                Dataset context:
-                {data_summary}
-
-                Return ONLY the Python code in a markdown code block, no explanations, no comments.
-            """
-            
-
-            logger.info("Generating code snippet")
-            # API  call just for generating code
-            code_snippet = call_gemini_api(code_prompt, api_key=API_KEY)
-            
-            
-            # Clean markdown formatting
-            if code_snippet.startswith("```python"):
-                code_snippet = code_snippet.replace("```python", "").replace("```", "").strip()
-                print("======================GENERATED CODE=====================================")
-                print(code_snippet)
-                print("======================GENERATED CODE=====================================")
-            
-
-               
-             # ==============================# EXECUTING THE GENERATED CODE===================================
-                try:
-                    # Reuse or initialize working_df =========================================================
-                    if working_df_store["working_df"] is not None:
-                        working_df = working_df_store["working_df"]
-                    else:
-                        original_df = get_uploaded_dataframe()
-                        if original_df is None:
-                            raise HTTPException(status_code=500, detail="No uploaded data found. Please re-upload your dataset.")
-                        working_df = original_df.copy()
-                    # ================STORING THE WORKING DATAFRAME WHERE THE CHANGES WILL BE MADE ============
+    except Exception as e:
+        return {
+            "success": False,
+            "output": None,
+            "error": str(e)
+        }
 
 
-                    local_vars = {"df": working_df}
-                    print("===================WORKING DATAFRAME BEFORE MODIFICATION======================")
-                    print(local_vars["df"].head())
-                    print("===================WORKING DATAFRAME BEFORE MODIFICATION======================")
-                    exec(code_snippet, {}, local_vars)
-                    result = local_vars.get("result", None)
-                    # Update the working_df with result if it's a DataFrame
-                    if isinstance(result, pd.DataFrame):
-                        working_df_store["working_df"] = result
-                        result_preview = result.head().to_dict(orient="records")
-                        print("==============WORKING DATAFRAME PREIVEW (Dataframe)=====================")
-                        print(result_preview)
-                        print("==============WORKING DATAFRAME PREIVEW=====================")
-                    else:
-                        result_preview = str(result)
-                        print("==============WORKING DATAFRAME PREIVEW (String)=====================")
-                        print(result_preview)
-                        print("==============WORKING DATAFRAME PREIVEW=====================")
-
-                except Exception as e:
-                    logger.error(f"Code execution failed: {e}")
-                    result_preview = f"Error executing code: {str(e)}"
-                # ======================================================================================
 
 
-           
-        
-        
-        response_data = {
-            "reply": chat_reply,
-            "code_result": result_preview if needs_code else None
+
+
+
+class ChatRequest(BaseModel):
+    message: str
+
+
+@router.post("/chat")
+async def chat_endpoint(req: ChatRequest, sid : str):
+    if sid not in session_store:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    try:
+        session_data = session_store[sid]
+        chat_session = session_data["chat_session"]
+
+        # Send user message to Gemini
+        response = chat_session.send_message(req.message)
+
+        results = {
+            "text": "",
+            "code": [],
+            "execution_results": []
         }
         
-        logger.info(f"Response prepared: NEEDS_CODE={needs_code}, HAS_CODE={code_snippet is not None}")
-        return JSONResponse(content=response_data)
+        print(response.candidates[0].content.parts)
+        # Parse parts: text, code, execution results
+        for part in response.candidates[0].content.parts:
+            # Capture plain text explanations (if any)
+            if part.text:
+                results["text"] += part.text
 
-    except HTTPException:
-        raise
+
+
+            # Capture structured code via function call
+            if part.function_call and part.function_call.name == "return_code":
+                code = part.function_call.args.get("code")
+                if code:
+                    results["code"].append(code)
+
+                    exec_result = execute_user_code(code, session_data["df"])
+                    results["execution_results"].append(exec_result["output"])
+
+
+
+
+        return results
+
     except Exception as e:
-        logger.error(f"Unexpected error in chat endpoint: {e}")
-        # Return error response with proper structure
-        return JSONResponse(
-            status_code=500,
-            content={
-                "reply": "Sorry, I encountered an error processing your request. Please try again."
-            }
-        )
+        print("ERROR in chat endpoint:", e)
+        print(traceback.format_exc())  # This will print the full error stack
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 
 
-
-
-
-# Resetting the working dataframe back to default (no changes made)
-@router.post("/results/reset")
-async def reset_working_dataframe():
-    working_df_store["working_df"] = None
-    return {"message": "Working dataframe has been reset."}

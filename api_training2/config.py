@@ -1,8 +1,4 @@
 
-
-
-
-
 from dotenv import load_dotenv
 import os
 import logging
@@ -11,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 from pathlib import Path
 
-# Get the root directory of the project
+# Root directory of the project
 ROOT_DIR = Path(__file__).parent.parent
 
 # Load environment variables from .env file in the root directory

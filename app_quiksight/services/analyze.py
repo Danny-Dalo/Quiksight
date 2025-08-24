@@ -11,7 +11,7 @@ import io
 import csv
 import numpy as np
 import json
-from ..services.data_overview import get_data_overview, _clean_value_for_json
+from ..services.data_overview import get_data_overview
 from ..services.missing_data_analysis import analyze_missing_data
 from api_training2.data_context import generate_summary_text, data_information
 
@@ -48,7 +48,7 @@ def read_uploaded_file(file: UploadFile) -> pd.DataFrame:
     except Exception as e:
         raise ValueError(f"File reading failed: {str(e)}")
 
-
+# ===============================================================================
 def _read_csv_file(raw: bytes) -> pd.DataFrame:
     """
     Read CSV file with multiple encoding attempts.
@@ -66,7 +66,7 @@ def _read_csv_file(raw: bytes) -> pd.DataFrame:
         try:
             return pd.read_csv(
                 io.StringIO(raw.decode(encoding)),
-                engine="python",  # <-- Switch from pyarrow to python
+                engine="python",  # <-- Switched from pyarrow to python
                 quotechar='"',
                 quoting=csv.QUOTE_MINIMAL,
                 skip_blank_lines=True,
@@ -75,7 +75,7 @@ def _read_csv_file(raw: bytes) -> pd.DataFrame:
             continue
     raise ValueError("Could not decode CSV file with any supported encoding")
 
-
+# ====================================================================================
 def _read_excel_file(raw: bytes) -> pd.DataFrame:
     """
     Read Excel file with multiple engine fallbacks.
@@ -103,7 +103,7 @@ def _read_excel_file(raw: bytes) -> pd.DataFrame:
     
     raise ValueError(f"Could not read Excel file with any engine. Last error: {last_error}")
 
-
+# ========================================================================
 def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """
     Clean and validate the DataFrame for analysis.
@@ -178,6 +178,9 @@ def truncate_sample_row_values(rows: list, max_len: int = 100) -> list:
 
 
 async def analyze_data(file: UploadFile) -> dict:
+    # FastAPI's File(...) dependency injector is only necessary in the endpoint function that receives the HTTP request
+    # The UploadFile object is being passed to it as an argument. The endpoint has already done the work of extracting the file from the request and creating the UploadFile object with the use of FILE(...) to read its contents
+    # The work of the analyze_data function is to now carry the contents that have been read and process it
     """
     Main function to analyze uploaded data files.
     
@@ -226,7 +229,7 @@ async def analyze_data(file: UploadFile) -> dict:
     # ==================================================================================
     sample_rows = df.sample(min(len(df), 5)).to_dict(orient="records")
     sample_rows = truncate_sample_row_values(sample_rows)
-    # ==================================================================================
+    # =================================================================================
 
     return {
         "overview": overview,
@@ -238,3 +241,8 @@ async def analyze_data(file: UploadFile) -> dict:
         "df": df
     }
     
+
+
+
+
+

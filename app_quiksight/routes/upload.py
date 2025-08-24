@@ -1,128 +1,262 @@
-import os
-from fastapi import UploadFile, File
-from fastapi import APIRouter, Request
-from fastapi.templating import Jinja2Templates
-from app_quiksight.services.analyze import analyze_data
+
+from fastapi import APIRouter, File, UploadFile, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+import os
+import pandas as pd
+import io, csv
+from google import genai
+from google.genai import types
+import numpy as np
+from api_training2.config import GEMINI_API_KEY
+import uuid
+
+router = APIRouter()
+templates = Jinja2Templates(directory="app_quiksight/templates")
 
 ALLOWED_EXTENSIONS = [".csv", ".xlsx", ".xls"]
 
-router = APIRouter()
+# In-memory storage (replace with DB/Redis in production)
+session_store = {}
 
-templates = Jinja2Templates(directory="app_quiksight/templates")
+client = genai.Client(api_key=GEMINI_API_KEY)
+
+return_code_tool = types.Tool(
+    function_declarations=[
+        types.FunctionDeclaration(
+            name="return_code",
+            description="Return only Python code as a string. Do not run it.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "code": types.Schema(type=types.Type.STRING)
+                },
+                required=["code"]
+            )
+        )
+    ]
+)
 
 
-# by default uploaded file is none as no one has uploaded anything
-uploaded_file = None 
-uploaded_dataframe = None
+
+def make_ai_context(df: pd.DataFrame, filename: str, sample_size: int = 5) -> str:
+    context_parts = []
+
+    # ===== 1. File-level metadata =====
+    context_parts.append(f"📂 Dataset name: {filename}")
+    context_parts.append(f"📐 Shape: {df.shape[0]} rows x {df.shape[1]} columns")
+
+    # ===== 2. Column summaries =====
+    summaries = []
+    for col in df.columns:
+        dtype = str(df[col].dtype)
+        missing_pct = df[col].isna().mean() * 100
+        unique_vals = df[col].nunique(dropna=True)
+
+        if pd.api.types.is_numeric_dtype(df[col]):
+            desc = df[col].describe(percentiles=[.25, .5, .75])
+            outliers = ((df[col] < (desc['25%'] - 1.5 * (desc['75%'] - desc['25%']))) |
+                        (df[col] > (desc['75%'] + 1.5 * (desc['75%'] - desc['25%'])))).sum()
+            col_summary = (
+                f"{col} (numeric) — {dtype}, {unique_vals} unique, "
+                f"missing: {missing_pct:.1f}%, "
+                f"min: {desc['min']}, Q1: {desc['25%']}, median: {desc['50%']}, "
+                f"Q3: {desc['75%']}, max: {desc['max']}, "
+                f"mean: {desc['mean']:.2f}, std: {desc['std']:.2f}, "
+                f"outliers: {outliers}"
+            )
+
+        elif pd.api.types.is_datetime64_any_dtype(df[col]):
+            col_summary = (
+                f"{col} (datetime) — {dtype}, {unique_vals} unique, "
+                f"missing: {missing_pct:.1f}%, "
+                f"range: {df[col].min()} → {df[col].max()}"
+            )
+
+        else:  # categorical or text
+            top_vals = df[col].value_counts(dropna=True).head(3).to_dict()
+            col_summary = (
+                f"{col} (categorical/text) — {dtype}, {unique_vals} unique, "
+                f"missing: {missing_pct:.1f}%, "
+                f"top values: {top_vals}"
+            )
+
+        summaries.append(col_summary)
+
+    context_parts.append("📝 Column summaries:\n" + "\n".join(summaries))
+
+    # ===== 3. Global dataset stats =====
+    context_parts.append(
+        f"📊 Missing values: {df.isna().sum().sum()} total "
+        f"({df.isna().mean().mean()*100:.1f}% overall)"
+    )
+    context_parts.append(
+        f"🔍 Duplicate rows: {df.duplicated().sum()} "
+        f"({df.duplicated().mean()*100:.1f}% of dataset)"
+    )
+
+    # ===== 4. Sample rows (head + random sample) =====
+    head_sample = df.head(3).to_dict(orient="records")
+    rand_sample = df.sample(min(sample_size, len(df)), random_state=42).to_dict(orient="records")
+    context_parts.append(f"👀 First rows (preview): {head_sample}")
+    context_parts.append(f"🎲 Random sample rows: {rand_sample}")
+
+    # ===== 5. Semantic cues =====
+    # A lightweight heuristic “description” the AI can use.
+    numeric_cols = df.select_dtypes(include=np.number).shape[1]
+    cat_cols = df.select_dtypes(exclude=np.number).shape[1]
+    context_parts.append(
+        f"💡 Dataset seems to contain {numeric_cols} numeric features and {cat_cols} categorical/text features."
+    )
+
+    return "\n\n".join(context_parts)
 
 
-# /chat/upload ==============WHAT HAPPENS WHEN A USER CLICKS THE SUBMIT BUTTON AFTER A FILE HAS BEEN UPLOADED
+
+
+
+SYSTEM_INSTRUCTION = """
+ROLE & GOAL
+
+You are a friendly, senior data analyst whose sole mission is to help non-technical users understand and work with their uploaded dataset. You speak like a helpful human, not like a programmer or machine. Your job is to answer questions, provide insights, and guide the user in exploring their data — without teaching technical theory or showing system internals.
+
+
+CRITICAL RULE: HTML OUTPUT ONLY
+
+Your responses will be rendered directly on a web page. Every response must be valid HTML, with no Markdown or plain text formatting.
+
+Use <p> for paragraphs.
+
+Use <strong> for bold and <em> for italics.
+
+Use <ul>, <ol>, and <li> for lists.
+
+Use <code> for column names or exact values (e.g., <code>customer_id</code>).
+
+Use <br> for line breaks where necessary.
+
+Tables and other elements must be cleanly formatted HTML.
+
+
+
+RULES FOR GENERATING CODE:
+- Always return only Python code inside the `return_code` tool.
+- When the user asks to see results (tables, charts, stats), write Python that prints or displays exactly what they requested. 
+- Do not rely on the backend to add `.head()` or trim outputs; you control all printing.
+- Never suppress or omit output unless the user explicitly asks for it.
+- If nothing meaningful to display, print a short message explaining that.
+
+
+
+
+
+
+BEHAVIOR & TONE
+
+Conversational, Accessible, and On-Topic: Respond in plain, everyday language that a non-technical person can understand. Avoid jargon unless absolutely necessary, and explain it simply if used.
+
+Professional Warmth: Be approachable and human-like, while staying professional and clear.
+
+Clarity First: Structure your answers for easy scanning — use short paragraphs, bullet points, and highlights to guide the eye.
+
+Stay in Scope: Only respond about the provided dataset. If asked something unrelated (e.g., news, weather, or general trivia), politely decline and guide the conversation back to the dataset.
+
+No Internals, Ever: Never mention how you work, your system setup, model, or any behind-the-scenes process.
+
+Keep It Useful & Concise: Provide enough detail to be helpful but avoid over-explaining or going off-topic.
+"""
+
+
+# After a file with valid extension has been uploaded, this function reads and loads the file (excel/csv)
+def read_file(file: UploadFile) -> pd.DataFrame:
+    raw = file.file.read()
+    if file.filename.lower().endswith(".csv"):
+        for encoding in ["utf-8", "latin1", "iso-8859-1", "cp1252"]:
+            try:
+                return pd.read_csv(io.StringIO(raw.decode(encoding)),
+                                   engine="python", quotechar='"',
+                                   quoting=csv.QUOTE_MINIMAL,
+                                   skip_blank_lines=True)
+            except UnicodeDecodeError:
+                continue
+        raise ValueError("Unable to decode CSV with supported encodings.")
+    else:
+        return pd.read_excel(io.BytesIO(raw))
+
+# Gives the AI model context of the data, involves  basic data info such as missing values, outliers, etc.
+
+
+
+
+
+
+
+
+
+
+# Uploaded files are validated and submitted to the chat endpoint for the AI model to use
 @router.post("/upload", response_class=HTMLResponse)
 async def upload_file(request: Request, file: UploadFile = File(...)):
-    # UploadFile: A class used by FastAPI to handle uploaded files. It's a file-like object that gives you access to the file's contents, filename, and other metadata.
-    # file: UploadFile = File(...): This is the core of the file upload mechanism.
-    # The parameter is named file.
-    # Its type hint is UploadFile, which tells FastAPI to expect an uploaded file.
-    # The File(...) part is the key: it instructs FastAPI to look for a file in the incoming request body and inject it into this function as an UploadFile object.
-    # They need to come together
-    # the type hint defines the expected data structure, and the dependency injector defines how to retrieve that data from the incoming request
-    global uploaded_file
+    # 1. No file
+    if not file or file.filename == "":
+        return templates.TemplateResponse("home.html", {"request": request, "error": "Please upload a file"})
 
-
-    # ===============================================================================
-    if not file or file.filename == "":  # returns error message if file input is empty
-        return templates.TemplateResponse("home.html", {
-            "request": request,
-            "error": "Please upload a file before submitting."
-        }) 
-    # ===============================================================================
-
-    
-    # ========================================================================
+    # 2. Validate extension
     _, ext = os.path.splitext(file.filename.lower())
-    # matches.csv returns (matches, csv)
     if ext not in ALLOWED_EXTENSIONS:
         return templates.TemplateResponse("home.html", {
             "request": request,
-            "error": f"Invalid file type. Only {', '.join(ALLOWED_EXTENSIONS)} extensions allowed."
-        })  # error message if file format is not supported
-    # =========================================================================
-    
+            "error": f"Invalid file type. Only {', '.join(ALLOWED_EXTENSIONS)} allowed"
+        })
 
+    try:
+        # 3. Read file
+        df = read_file(file)
 
-    # =========================================================================
+        # 4. Build AI context
+        ai_context = make_ai_context(df, file.filename)
 
-    # after a proper file format has been accepted and confirmed, store the file that has been uploaded into the uploaded_file variable
-    uploaded_file = file
-    
-    
-
-
-    # ========================================================================================
-    global analysis_result
-    analysis_result = await analyze_data(file)  # The return values(s) of the analyze_data() function, which takes in our uploaded file, is stored in analysis_result
-    df = analysis_result.pop("df", None)
-# =========================================================
-    global uploaded_dataframe
-    uploaded_dataframe = df
-# ========================================================================================
-    
-
-    # Returns a redirect response to the next Uniform Resource Locator(URL) enpoint
-    return RedirectResponse(url="/chat/results", status_code=303)
-#     # =========================================================================
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-@router.get("/results", response_class=HTMLResponse)
-async def results(request: Request):
-    global uploaded_file
-    
-    if not uploaded_file:
-        return RedirectResponse(url="/", status_code=303) # ensures that the only way to go to the next page is by submitting an uploaded file
-    
-    
-
-    # ==============================================================================================
-    if "overview" not in analysis_result:
-        # if for some reason or error "overview" dict is not returned, it stays at the home page and displays an error message
-        return templates.TemplateResponse(
-            "home.html",
-            {
-                "request": request,
-                "error": analysis_result.get("error", "Unknown analysis error"),
-            },
+        # Creating a chat  session
+        chat_session = client.chats.create(
+            model="gemini-2.5-flash",
+            config=types.GenerateContentConfig(
+                system_instruction = SYSTEM_INSTRUCTION + "\n\n### CONTEXT OF THE USER'S DATA ###\n" + ai_context,
+                tools=[return_code_tool],
+                # tools=[types.Tool(code_execution=types.ToolCodeExecution)],
+                 temperature=0.0
+            )
         )
+        
+        # Save in memory
+        session_id = str(uuid.uuid4())
+        # Convert file size to KB (rounded to 2 decimals)
+        size_kb = file.size / 1024
+        if size_kb < 1024:
+            file_size = f"{size_kb:.2f} KB"
+        else:
+            file_size = f"{size_kb/1024:.2f} MB"
 
+        # Getting when the file was uploaded
+        current_timestamp = pd.Timestamp.now()
 
-    # it then returns the results.html page
-    """
-    file represents the uploaded file
-    request is  simply sending a get request to the server
-    analysis is the holy grail analyze_data function doing the heavy processing and lifting
-    """
-    return templates.TemplateResponse("results.html", {
-        "request": request, 
-        "file": uploaded_file,
-        "analysis": analysis_result
-    })
+        session_store[session_id] = {
+            "df": df,
+            "chat_session": chat_session,
+            # "context": ai_context,
 
+            "file_name": file.filename,
+            "file_size": file_size,
+            "upload_date": current_timestamp.strftime("%Y-%m-%d"),
+            "upload_time": current_timestamp.strftime("%H:%M:%S"),
+            "columns" : list(df.columns),
 
+            "preview_rows": df.head(5).to_dict(orient="records")
+        }
 
-# Get the current state of the uploaded dataframe
-def get_uploaded_dataframe():
-    return uploaded_dataframe
+        
+
+        # Redirect to chat page with session ID
+        return RedirectResponse(url=f"/chat?sid={session_id}", status_code=303)
+
+    except Exception as e:
+        return templates.TemplateResponse("home.html", {"request": request, "error": str(e)})
