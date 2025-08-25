@@ -5,9 +5,12 @@ import traceback
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 from fastapi.templating import Jinja2Templates
-import os
-from google import genai
-from google.genai import types
+
+
+import os, io
+import pandas as pd
+import numpy as np
+
 from .upload import session_store   # import to use the generated session ID from upload
 from api_training2.config import GEMINI_API_KEY
 
@@ -68,10 +71,7 @@ async def chat_page(request : Request, sid : str):
 
 
 
-import pandas as pd
-import numpy as np
-import sys, io
-from pandas.io.formats.style import Styler
+
 
 
 

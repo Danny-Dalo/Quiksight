@@ -2,14 +2,17 @@
 from fastapi import APIRouter, File, UploadFile, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+
 import os
 import pandas as pd
 import io, csv
-from google import genai
-from google.genai import types
 import numpy as np
+
 from api_training2.config import GEMINI_API_KEY
 import uuid
+
+from google import genai
+from google.genai import types
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app_quiksight/templates")
