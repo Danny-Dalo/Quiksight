@@ -1,0 +1,41 @@
+- Generate new API key
+- Chat box and data overview section in split screen view
+- For all inputs that the AI will use, find  a way to cleanly organize all the modules that may be needed into a file, so it just calls what it needs from the file
+- A way to properly add LLM memory instead of just storing in a dict > solved with Gemini in-built chat_session
+- Test out the code execution tool
+- Limit file size to 30MB for now
+- let AI be the one to priint out the table result itself
+- Explore thinking model budgets
+
+
+
+
+
+- AI should be able to show plots
+- Better, more specific Error handling functions (network, request timeout, too many requests per time, etc.)
+- Add clear comments
+- As user sends the message, the "send" button should be disabled to avoid going over quota limit so fast
+- Showing execution list/tuple/series in Text in stead of plain text/table
+- Outputted a markdown instead of html response
+- All dataframe/table output should be in a well formatted and styled table
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+Primary: Blue (#2563EB → Tailwind blue-600)
+
+Accent: Indigo or Teal (#6366F1 / #14B8A6)
+
+Background/Neutral: White, light gray (#F9FAFB / #E5E7EB)
+
+Text: Dark gray (#111827)
