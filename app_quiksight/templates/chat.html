@@ -229,7 +229,7 @@ textarea.addEventListener('input', () => {
     appendMessage("user", msg);
     messageInput.value = "";    // User's message is tagged as user styling
 
-    appendMessage("ai", "<em>Thinking...</em>");      // AI thinking animation
+    appendMessage("ai", '<span class="loading loading-ring loading-md text-success"></span>');      // AI thinking animation
 
     try {
       // Sending the message as a JSON string to the chat endpoint
