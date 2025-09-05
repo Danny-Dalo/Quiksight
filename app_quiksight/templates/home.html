@@ -4,7 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Quiksight</title>
-    <link rel="icon" type="image/png" href="/static/img/favicon.png" />
+    
+     
     <link
       href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css"
       rel="stylesheet"
@@ -12,6 +13,8 @@
     />
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="{{url_for( 'static', path='css/home.css')}}" />
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='img/Q-favicon.png') }}"/>
+    
   </head>
   <body
     class="bg-gradient-to-b from-blue-50 to-white min-h-screen flex flex-col"
@@ -19,12 +22,7 @@
     <!-- Header -->
     <header class="flex items-center justify-between px-6 py-4 bg-transparent">
       <div class="flex items-center gap-2">
-        <!-- <img
-          src="/static/img/favicon.png"
-          alt="Quiksight Logo"
-          class="w-8 h-8"
-        /> -->
-        <span class="text-2xl font-bold text-blue-700">Quiksight</span>
+         <img src="{{ url_for('static', path='img/Q-favicon.png') }}" alt="Quiksight logo" class="h-10 w-10">
       </div>
       <a href="/login" class="btn btn-outline btn-primary">Sign In</a>
     </header>
@@ -35,7 +33,7 @@
         >🫠🫠</span
       >
       <h1 class="text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
-        Fix Messy Data. <span class="text-blue-600">Just Ask.</span>
+        Chat With<span class="text-blue-600">Data</span>
       </h1>
       <p class="text-lg md:text-xl text-gray-600 max-w-2xl mb-8">
         Upload your messy spreadsheets and chat with an AI that understands your

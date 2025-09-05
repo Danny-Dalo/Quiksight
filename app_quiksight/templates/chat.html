@@ -42,6 +42,7 @@
   
 </head>
 <body class="bg-base-100 flex flex-col items-center justify-center min-h-screen p-4">
+  
 
 
 <div class="card w-full max-w-md bg-white shadow-lg">
@@ -244,19 +245,39 @@ textarea.addEventListener('input', () => {
       chatMessages.lastChild.remove(); // Remove "Thinking..."
 
       let aiResponse = "";             // By default, the AI response is nothing
-      if (data.text) aiResponse += `<p  style="border:solid 1px red;">${data.text}</p>`;   // aiResponse becomes the text reponse that the AI returns
-      if (data.code?.length) {
-        aiResponse += `<pre style="border:solid 1px blue;"><code>${data.code.join("\n\n")}</code></pre>`;    // if there is code generated, it's added to the AI's response
+      if (data.response.text) {aiResponse += `
+        <div style="border: 1px solid red; padding: 6px; margin-bottom: 8px;">
+          ${data.response.text}
+        </div>`;   // aiResponse becomes the text reponse that the AI returns
       }
-      if (data.execution_results?.length) {
-        aiResponse += `<div  style="border:solid 1px green;">${data.execution_results.join("\n")}</div>`;    // if the code has  results, it's added to the AI's response as well
+
+      
+      // MONITORING THE CODE AI GENERATES
+      if (data.response.code) {
+            aiResponse += `
+        <pre style="border: 1px solid blue; padding: 6px; margin-bottom: 8px; background:#f9f9f9;">
+          <code>${data.response.code}</code>
+        </pre>`;    // if there is code generated, it's added to the AI's response
+      }
+
+
+      // MONITORING THE EXECUTION RESULT PROVIDED
+      if (data.response.execution_results) {
+        aiResponse += `
+          <div style="border: 1px solid green; padding: 6px; margin-bottom: 8px; white-space: pre-wrap; font-family: monospace;">
+              ${data.response.execution_results}
+          </div>`;   // if the code has  results, it's added to the AI's response as well
       }
       
-      appendMessage("ai", aiResponse);    // AI response is added to the ai tag so the div is populated with the aiResponse
 
+      // AI response is added to the ai tag so the div is populated with the aiResponse
+      appendMessage("ai", aiResponse);    
+
+      // CATCH AND THROW ANY ERRORS THAT MAY COME UP IN A USER-FRIENDLY WAY
     } catch (err) {               
       chatMessages.lastChild.remove();          
-      appendMessage("ai", `<span style="color:red;">Error: ${err.message}</span>`);       
+      appendMessage("ai", `<span style="color:red;">There was an error in the request. Try again</span>`);       
+      appendMessage("ai", `<br/><span style="color:red;">Error: ${err.message}</span>`);       
       //if ann error occurs, it removes the last AI response and replces it with the error message
     }
   }
@@ -265,9 +286,6 @@ textarea.addEventListener('input', () => {
   messageInput.addEventListener("keypress", e => {  // 'Enter' key sends the message as well 
     if (e.key === "Enter") sendMessage();
   });
-
-
-
 
 </script>
 

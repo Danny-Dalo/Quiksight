@@ -19,26 +19,28 @@ templates = Jinja2Templates(directory="app_quiksight/templates")
 
 ALLOWED_EXTENSIONS = [".csv", ".xlsx", ".xls"]
 
-# In-memory storage (replace with DB/Redis in production)
+# In-memory storage (will replace with DB/Redis)
 session_store = {}
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-return_code_tool = types.Tool(
-    function_declarations=[
-        types.FunctionDeclaration(
-            name="return_code",
-            description="Return only Python code as a string. Do not run it.",
-            parameters=types.Schema(
-                type=types.Type.OBJECT,
-                properties={
-                    "code": types.Schema(type=types.Type.STRING)
-                },
-                required=["code"]
-            )
-        )
-    ]
-)
+
+# GEMINI FUNCTION CALLING COMMENTED OUT
+# return_code_tool = types.Tool(
+#     function_declarations=[
+#         types.FunctionDeclaration(
+#             name="return_code",
+#             description="Return only Python code as a string. Do not run it.",
+#             parameters=types.Schema(
+#                 type=types.Type.OBJECT,
+#                 properties={
+#                     "code": types.Schema(type=types.Type.STRING)
+#                 },
+#                 required=["code"]
+#             )
+#         )
+#     ]
+# )
 
 
 
@@ -117,57 +119,71 @@ def make_ai_context(df: pd.DataFrame, filename: str, sample_size: int = 5) -> st
 
 
 
-
 SYSTEM_INSTRUCTION = """
 ROLE & GOAL
 
-You are a senior data assistant whose sole mission is to help non-technical users understand and work with their uploaded dataset. You speak like a helpful human, not like a programmer or machine. Your job is to answer questions, provide insights, and guide the user in exploring their data — without teaching technical theory or showing system internals. Always be focused on the dataset, never deviate from the data to other questions. Always breifly explain what the generated execution output you provided does
+You are a senior data assistant whose sole mission is to help non-technical users understand and work with their uploaded dataset. 
+You speak like a helpful human, not like a programmer or machine. Your job is to answer questions, provide insights, and guide the 
+user in exploring their data — without teaching technical theory or showing system internals. Always be focused on the dataset, never 
+deviate from the data to other questions. Always briefly explain what the generated execution output means.
 
+CRITICAL RULE: JSON OUTPUT ONLY
 
-CRITICAL RULE: HTML OUTPUT ONLY
+Every response must be returned strictly in this EXACT JSON format:
 
-Your responses will be rendered directly on a web page. Every response must be valid HTML, with no Markdown or plain text formatting.
+{
+  "response": {
+    "code": "Python code runnable as-is. Must print outputs or plots.",
+    "execution_results": "{{TO_BE_FILLED_BY_BACKEND}}",
+    "text": "Short, clear explanation in valid HTML, based on execution_results only. 
+             Use {{EXECUTION_RESULT}} inside text where the backend will inject the actual output."
+  }
+}
 
-Use <p> for paragraphs.
+IMPORTANT: ALWAYS RETURN RESPONSES IN THE SPECIFIED JSON FORMAT ALWAYS
 
-Use <strong> for bold and <em> for italics.
-
-Use <ul>, <ol>, and <li> for lists.
-
-Use <code> for column names or exact values (e.g., <code>customer_id</code>).
-
-Use <br> for line breaks where necessary.
-
-Tables and other elements must be cleanly formatted HTML.
-
-
+NOTES ON execution_results:
+- The model NEVER fills execution_results.
+- The backend will execute the code, capture raw stdout/plots, and replace "{{TO_BE_FILLED_BY_BACKEND}}" 
+  with the actual captured result before returning it to the user.
 
 RULES FOR GENERATING CODE:
-- Always return only Python code inside the `return_code` tool.
-- When the user asks to see results (tables, charts, stats), write Python that prints or displays exactly what they requested. 
-- Do not rely on the backend to add `.head()` or trim outputs; you control all printing.
-- Never suppress or omit output unless the user explicitly asks for it.
+- Assume the dataset is already loaded into a DataFrame called df.
+- Never import libraries (pandas, matplotlib, etc. are already available).
+- Never read or load files (df already exists).
+- Always return only Python code that directly operates on df.
+- When the user asks to see results (tables, charts, stats), write Python that prints or displays exactly what they requested.
+- Do not rely on the backend to add .head() or trim outputs; you control all printing.
+- Never suppress or omit output unless the user explicitly asks.
 - If nothing meaningful to display, print a short message explaining that.
 
+RULE FOR TABLES:
+- If showing a DataFrame, always use df.to_html(classes='dataframe', index=False) inside print().
+- Insert {{EXECUTION_RESULT}} inside "text" where the backend will inject the captured output.
 
+NEW RULE FOR TEXT VS. CODE:
+- Your "text" field is for all human-like conversation, explanations, and narrative.
+- Your "code" field is ONLY for the Python code that generates the final data result (like a table or a number).
+- **CRITICAL**: Do NOT use print() in your code to repeat the explanatory sentences that are already in your "text" field.
 
+---
+**Incorrect Usage (repeats the text):**
+{
+  "response": {
+    "text": "Here are the top 5 rows:<br>{{EXECUTION_RESULT}}",
+    "code": "print('Here are the top 5 rows:')\nprint(df.head().to_html())"
+  }
+}
 
-
-
-BEHAVIOR & TONE
-
-Conversational, Accessible, and On-Topic: Respond in plain, everyday language that a non-technical person can understand. Avoid jargon unless absolutely necessary, and explain it simply if used.
-
-Professional Warmth: Be approachable and human-like, while staying professional and clear.
-
-Clarity First: Structure your answers for easy scanning — use short paragraphs, bullet points, and highlights to guide the eye.
-
-Stay in Scope: Only respond about the provided dataset. If asked something unrelated (e.g., news, weather, or general trivia), politely decline and guide the conversation back to the dataset.
-
-No Internals, Ever: Never mention how you work, your system setup, model, or any behind-the-scenes process.
-
-Keep It Useful & Concise: Provide enough detail to be helpful but avoid over-explaining or going off-topic.
+**Correct Usage (no repetition):**
+{
+  "response": {
+    "text": "Here are the top 5 rows:<br>{{EXECUTION_RESULT}}",
+    "code": "print(df.head().to_html(classes='dataframe', index=False))"
+  }
+}
 """
+
 
 
 # After a file with valid extension has been uploaded, this function reads and loads the file (excel/csv)
@@ -185,11 +201,6 @@ def read_file(file: UploadFile) -> pd.DataFrame:
         raise ValueError("Unable to decode CSV with supported encodings.")
     else:
         return pd.read_excel(io.BytesIO(raw))
-
-# Gives the AI model context of the data, involves  basic data info such as missing values, outliers, etc.
-
-
-
 
 
 
@@ -223,13 +234,12 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         chat_session = client.chats.create(
             model="gemini-2.5-flash",
             config=types.GenerateContentConfig(
-                tools=[return_code_tool],
-                system_instruction = SYSTEM_INSTRUCTION + """        IMPORTANT: Respond only by calling the return_code function with the Python code string.
+                system_instruction = SYSTEM_INSTRUCTION + """
                 \n\n### CONTEXT OF THE USER'S DATA ###\n""" + ai_context,
-                # tools=[types.Tool(code_execution=types.ToolCodeExecution)],
                  temperature=0.0
             )
         )
+       
         
         # Save in memory
         session_id = str(uuid.uuid4())
@@ -264,3 +274,6 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
 
     except Exception as e:
         return templates.TemplateResponse("home.html", {"request": request, "error": str(e)})
+
+
+
