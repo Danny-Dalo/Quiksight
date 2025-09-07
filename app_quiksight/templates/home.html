@@ -20,117 +20,110 @@
     class="bg-gradient-to-b from-blue-50 to-white min-h-screen flex flex-col"
   >
     <!-- Header -->
-    <header class="flex items-center justify-between px-6 py-4 bg-transparent">
+    <!-- <header class="flex items-center justify-between px-6 py-4 bg-transparent">
       <div class="flex items-center gap-2">
          <img src="{{ url_for('static', path='img/Q-favicon.png') }}" alt="Quiksight logo" class="h-10 w-10">
       </div>
       <a href="/login" class="btn btn-outline btn-primary">Sign In</a>
-    </header>
+    </header> -->
 
     <!-- Hero Section -->
-    <section class="flex flex-col items-center text-center mt-8 mb-6 px-4">
-      <span class="badge badge-info badge-lg mb-4"
-        >🫠🫠</span
-      >
+  <section class="flex flex-col items-center text-center mt-8 mb-6 px-4">
+      
+
+
+      <!-- <span class="badge badge-info badge-lg mb-4"
+        >🫠🫠</span> -->
       <h1 class="text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
-        Chat With<span class="text-blue-600">Data</span>
+        Talk To Your<span class="text-blue-600"> Data</span>
       </h1>
-      <p class="text-lg md:text-xl text-gray-600 max-w-2xl mb-8">
+      <!-- <p class="text-lg md:text-xl text-gray-600 max-w-2xl mb-8">
         Upload your messy spreadsheets and chat with an AI that understands your
         data.
-      </p>
-      <!-- Upload Box -->
-      
-      <div>
-        <form style="border: solid 1px red;" action="/upload" method="post" enctype="multipart/form-data">
-        
+      </p> -->
 
-          <label for="file-upload">
-            <input id="file-upload" type="file" name="file" accept=".csv, .xlsx, .xls" required/>
-          </label>
+      <div class="w-full max-w-md bg-white rounded-xl shadow-md p-6 space-y-6 border border-gray-200">
+          <div class="text-center">
+            <h2 class="text-xl font-semibold text-gray-900">Upload Your File</h2>
+            <p class="text-gray-500 mt-1">Select a file to continue.</p>
+          </div>
 
-          <button style="border: solid 2px blue;">Upload</button>
-          
-        </form>
-        {% if error %}
+      <form action="/upload" method="post" enctype="multipart/form-data" class="space-y-4">
+        <!-- Dropzone -->
+        <label for="file-upload" 
+              class="group block w-full cursor-pointer rounded-lg border-2 border-dashed border-gray-300 p-8 text-center hover:border-gray-400 hover:bg-gray-50 transition">
+          <div id="dropzone-text" class="flex flex-col items-center justify-center space-y-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-gray-400 group-hover:text-gray-600 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 16v2a2 2 0 002 2h14a2 2 0 002-2v-2M12 12V3m0 0l4 4m-4-4l-4 4" />
+            </svg>
+            <p class="font-medium text-gray-700">Drop your file here</p>
+            <p class="text-sm text-gray-400">Supports: .xlsx, .xls, .csv</p>
+          </div>
+
+          <div id="file-name-display" class="hidden flex-col items-center space-y-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-gray-600">File selected:</p>
+            <p id="file-name" class="font-semibold text-blue-600"></p>
+          </div>
+        </label>
+
+        <!-- File input (hidden) -->
+        <input id="file-upload" type="file" name="file" class="hidden"
+              accept=".csv, .xlsx, .xls" required />
+
+        <!-- Submit button -->
+        <button id="upload-btn" type="submit"
+                class="w-full py-2 px-4 rounded-lg bg-black text-white font-medium disabled:opacity-60 disabled:cursor-not-allowed transition"
+                disabled>
+          Upload File
+        </button>
+      </form>
+
+      <!-- Error message -->
+      {% if error %}
         <p class="text-red-500 mt-4 font-bold">{{ error }}</p>
-        {% endif %}
-      </div>
-    </section>
-
-    <!-- How it Works -->
-    <section class="max-w-5xl mx-auto mt-12 mb-8 px-4">
-      <h2 class="text-2xl font-bold text-center mb-8 text-blue-600">How it works</h2>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div
-          class="flex flex-col items-center bg-white rounded-xl p-6 shadow hover:shadow-lg transition"
-        >
-          <div class="bg-blue-100 text-blue-600 rounded-full p-3 mb-4">
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-7 w-7 mx-auto"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"
-                />
-              </svg>
-          </div>
-          <h3 class="font-semibold text-lg mb-2 text-blue-600">1. Upload Your Data</h3>
-          <p class="text-gray-500">
-            Drag and drop your CSV or Excel files. Our AI instantly analyzes
-            your data structure and identifies issues.
-          </p>
-        </div>
-        <div
-          class="flex flex-col items-center bg-white rounded-xl p-6 shadow hover:shadow-lg transition"
-        >
-          <div class="bg-purple-100 text-purple-600 rounded-full p-3 mb-4">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-    xmlns="http://www.w3.org/2000/svg">
-    <path d="M4 4H20C21.1 4 22 4.9 22 6V16C22 17.1 21.1 18 20 18H6L2 22V6C2 4.9 2.9 4 4 4Z"
-      fill="#673AB7"/>
-  </svg>
-          </div>
-          <h3 class="font-semibold text-lg mb-2 text-blue-600">2. Chat with Your Data</h3>
-          <p class="text-gray-500">
-            Ask questions, request changes, and give instructions in plain
-            English. The AI understands your data context.
-          </p>
-        </div>
-        <div
-          class="flex flex-col items-center bg-white rounded-xl p-6 shadow hover:shadow-lg transition"
-        >
-          <div class="bg-green-100 text-green-600 rounded-full p-3 mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg"
-     class="h-7 w-7 mx-auto"
-     fill="none"
-     viewBox="0 0 24 24"
-     stroke="#008000">
-  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-        d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
-</svg>
+      {% endif %}
+    </div>
 
 
 
-          </div>
-          <h3 class="font-semibold text-lg mb-2 text-blue-600">3. Download Clean Data</h3>
-          <p class="text-gray-500">
-            Get your cleaned, formatted, and validated dataset ready for
-            analysis, reporting, or machine learning.
-          </p>
-        </div>
-      </div>
-    </section>
 
-
- 
-
-
+  </section>
   </body>
 </html>
+
+
+<script>
+
+  document.addEventListener("DOMContentLoaded", () => {
+  const fileInput = document.getElementById('file-upload');
+  const uploadButton = document.getElementById('upload-btn');
+  const dropzoneText = document.getElementById('dropzone-text');
+  const fileNameDisplay = document.getElementById('file-name-display');
+  const fileNameSpan = document.getElementById('file-name');
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length > 0) {
+      const fileName = fileInput.files[0].name;
+      fileNameSpan.textContent = fileName;
+
+      dropzoneText.classList.add('hidden');
+      fileNameDisplay.classList.remove('hidden');
+      fileNameDisplay.classList.add('flex');
+
+      uploadButton.disabled = false;
+    } else {
+      fileNameSpan.textContent = '';
+      dropzoneText.classList.remove('hidden');
+      fileNameDisplay.classList.add('hidden');
+      fileNameDisplay.classList.remove('flex');
+
+      uploadButton.disabled = true;
+    }
+  });
+});
+        
+
+</script>

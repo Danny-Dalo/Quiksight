@@ -330,7 +330,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
             "file_name": file.filename,
             "file_size": file_size,
             "upload_date": current_timestamp.strftime("%Y-%m-%d"),
-            "upload_time": current_timestamp.strftime("%H:%M:%S"),
+            "upload_time": current_timestamp.strftime("%I:%M %p"),
             "columns" : list(df.columns),
 
             "preview_rows": df.head(5).to_dict(orient="records")
