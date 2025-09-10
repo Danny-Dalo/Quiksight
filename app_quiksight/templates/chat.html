@@ -199,7 +199,6 @@
 <script>
   const urlParams = new URLSearchParams(window.location.search)
   const sessionID = urlParams.get("sid");
-  console.log(urlParams, sessionID)
 
   const chatMessages = document.getElementById("chat-messages");
   const messageInput = document.getElementById("message-input");
@@ -260,14 +259,14 @@ textarea.addEventListener('input', () => {
 
 
   
-  async function sendMessage() {                         //NEW
+  async function sendMessage() {                         
     const msg = messageInput.value.trim();    
     if (!msg) return;         // Get the user's message, if there's no message, then nothing happens
 
     appendMessage("user", msg);
-    messageInput.value = "";    // User's message is tagged as user styling
+    messageInput.value = "";    // User's message is tagged for user styling
 
-    appendMessage("ai", '<span class="loading loading-ring loading-md text-info"></span>');      // AI thinking animation
+    appendMessage("ai", '<span class="loading loading-dots loading-md"></span>');      // AI thinking animation
 
     try {
       // Sending the message as a JSON string to the chat endpoint
@@ -284,28 +283,28 @@ textarea.addEventListener('input', () => {
 
       let aiResponse = "";             // By default, the AI response is nothing
       if (data.response.text) {aiResponse += `
-        <div style="border: 1px solid red; padding: 6px; margin-bottom: 8px;">
+        <div style="padding: 6px; margin-bottom: 8px;">
           ${data.response.text}
         </div>`;   // aiResponse becomes the text reponse that the AI returns
       }
 
       
       // MONITORING THE CODE AI GENERATES
-      if (data.response.code) {
-            aiResponse += `
-        <pre style="border: 1px solid blue; padding: 6px; margin-bottom: 8px; background:#f9f9f9;">
-          <code>${data.response.code}</code>
-        </pre>`;    // if there is code generated, it's added to the AI's response
-      }
+      // if (data.response.code) {
+      //       aiResponse += `
+      //   <pre style="border: 1px solid blue; padding: 6px; margin-bottom: 8px; background:#f9f9f9;">
+      //     <code>${data.response.code}</code>
+      //   </pre>`;    // if there is code generated, it's added to the AI's response
+      // }
 
 
       // MONITORING THE EXECUTION RESULT PROVIDED
-      if (data.response.execution_results) {
-        aiResponse += `
-          <div style="border: 1px solid green; padding: 6px; margin-bottom: 8px; white-space: pre-wrap; font-family: monospace;">
-              ${data.response.execution_results}
-          </div>`;   // if the code has  results, it's added to the AI's response as well
-      }
+      // if (data.response.execution_results) {
+      //   aiResponse += `
+      //     <div style="border: 1px solid green; padding: 6px; margin-bottom: 8px; white-space: pre-wrap; font-family: monospace;">
+      //         ${data.response.execution_results}
+      //     </div>`;   // if the code has  results, it's added to the AI's response as well
+      // }
       
 
       // AI response is added to the ai tag so the div is populated with the aiResponse
