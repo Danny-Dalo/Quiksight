@@ -224,13 +224,10 @@ RULE FOR TABLES:
 - If showing a DataFrame, use `print(df.to_html(classes='dataframe', index=False))`.
 - A pandas `Series` (like the output of `value_counts()`) does not have a `.to_html()` method.
 - **You MUST convert a Series to a DataFrame first using `.to_frame()` before calling `.to_html()`.**
-- After using `.to_frame()` on a `groupby` result, you **MUST** also use `.reset_index()` to flatten the column names and make them clean.
 
 **Correct Usage for a Series:**
 `print(df['genre'].value_counts().to_frame().to_html(classes='dataframe'))`
 
-**Correct Usage for a GroupBy:**
-`print(df.groupby('Category')['Sales'].sum().to_frame().reset_index().to_html(classes='dataframe'))`
 ---
 RULE FOR TEXT VS. CODE:
 - Your "text" field is for all conversation and explanations.
