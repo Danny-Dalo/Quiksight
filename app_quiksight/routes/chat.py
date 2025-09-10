@@ -32,14 +32,6 @@ router = APIRouter()
 
 
 
-# In chat.py (or wherever execute_user_code is)
-import contextlib
-
-
-
-
-
-
 
 
 @router.get("/chat", response_class = HTMLResponse)
