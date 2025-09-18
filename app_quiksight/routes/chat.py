@@ -33,7 +33,7 @@ router = APIRouter()
 
 
 
-
+# Display the chat.html page
 @router.get("/chat", response_class = HTMLResponse)
 async def chat_page(request : Request, sid : str):
 
@@ -75,7 +75,7 @@ async def chat_page(request : Request, sid : str):
 
 
 
-
+# Styling for when the model returns a dataframe/table
 def dataframe_to_styled_html(df: pd.DataFrame, max_rows=10):
     """Convert a Pandas DataFrame into a styled Tailwind/DaisyUI HTML table."""
     # Limit rows for readability (optional)
@@ -153,26 +153,40 @@ def execute_user_code(code: str, df: pd.DataFrame):
 
 
 
-def clean_raw_json_response(ai_response):
-        ai_response = ai_response.strip()
-        if ai_response.startswith("```"):
-            # This regex now also handles optional 'json' language specifier
-            ai_response = re.sub(r"^```(json)?\n?", "", ai_response) 
-            ai_response = re.sub(r"\n?```$", "", ai_response)
-        ai_response = ai_response.strip()
+# Validate the model's response to make sure it is in proper JSON
+def clean_raw_json_response(ai_response: str):
+    """
+    Aggressively finds and parses a JSON object from a potentially messy string.
+    """
+    # Find the start of the JSON object
+    json_start_index = ai_response.find('{')
+    if json_start_index == -1:
+        print("ERROR: No JSON object found in AI response.")
+        raise HTTPException(status_code=500, detail="AI response did not contain valid JSON.")
 
+    # Find the end of the JSON object
+    # This is tricky because of nested objects. We'll look for the last closing brace.
+    json_end_index = ai_response.rfind('}')
+    if json_end_index == -1:
+        print("ERROR: No closing brace for JSON object found.")
+        raise HTTPException(status_code=500, detail="AI response did not contain valid JSON.")
 
+    # Extract the potential JSON string
+    potential_json = ai_response[json_start_index : json_end_index + 1]
 
-        try:
-            json_decoder = json.JSONDecoder()
-            parsed_response, _ = json_decoder.raw_decode(ai_response)
-            print("\n\n\n\AI JSON:\n\n", parsed_response)
-        except json.JSONDecodeError as e:
-            print("JSON parse error:", e, "\nRaw text was:", ai_response)
-            raise HTTPException(status_code=500, detail="AI returned invalid JSON")
-        
+    try:
+        # Try to parse the extracted string
+        parsed_response = json.loads(potential_json)
+        print("\n\nSuccessfully Parsed AI JSON:\n\n", parsed_response)
         return parsed_response
-
+    except json.JSONDecodeError as e:
+        print("JSON parse error:", e)
+        print("--- Raw AI Text Was ---")
+        print(ai_response)
+        print("--- Attempted to Parse ---")
+        print(potential_json)
+        print("-----------------------")
+        raise HTTPException(status_code=500, detail="AI returned invalid JSON after cleaning.")
 
 
 
@@ -231,6 +245,8 @@ async def chat_endpoint(req: ChatRequest, sid: str):
         print("ERROR in chat endpoint:", e)
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
+
+
 
 
 
