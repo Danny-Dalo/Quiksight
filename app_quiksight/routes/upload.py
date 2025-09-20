@@ -42,81 +42,206 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 #     ]
 # )
 
+import yaml
+
+# def make_ai_context(df: pd.DataFrame, filename: str, sample_size: int = 5) -> str:
+#     context_parts = []
+
+#     # ===== 1. File-level metadata =====
+#     context_parts.append(f"📂 Dataset name: {filename}")
+#     context_parts.append(f"📐 Shape: {df.shape[0]} rows x {df.shape[1]} columns")
+
+#     # ===== 2. Column summaries =====
+#     summaries = []
+#     for col in df.columns:
+#         dtype = str(df[col].dtype)
+#         missing_pct = df[col].isna().mean() * 100
+#         unique_vals = df[col].nunique(dropna=True)
+
+#         if pd.api.types.is_numeric_dtype(df[col]):
+#             desc = df[col].describe(percentiles=[.25, .5, .75])
+#             outliers = ((df[col] < (desc['25%'] - 1.5 * (desc['75%'] - desc['25%']))) |
+#                         (df[col] > (desc['75%'] + 1.5 * (desc['75%'] - desc['25%'])))).sum()
+#             col_summary = (
+#                 f"{col} (numeric) — {dtype}, {unique_vals} unique, "
+#                 f"missing: {missing_pct:.1f}%, "
+#                 f"min: {desc['min']}, Q1: {desc['25%']}, median: {desc['50%']}, "
+#                 f"Q3: {desc['75%']}, max: {desc['max']}, "
+#                 f"mean: {desc['mean']:.2f}, std: {desc['std']:.2f}, "
+#                 f"outliers: {outliers}"
+#             )
+
+#         elif pd.api.types.is_datetime64_any_dtype(df[col]):
+#             col_summary = (
+#                 f"{col} (datetime) — {dtype}, {unique_vals} unique, "
+#                 f"missing: {missing_pct:.1f}%, "
+#                 f"range: {df[col].min()} → {df[col].max()}"
+#             )
+
+#         else:  # categorical or text
+#             top_vals = df[col].value_counts(dropna=True).head(3).to_dict()
+#             col_summary = (
+#                 f"{col} (categorical/text) — {dtype}, {unique_vals} unique, "
+#                 f"missing: {missing_pct:.1f}%, "
+#                 f"top values: {top_vals}"
+#             )
+
+#         summaries.append(col_summary)
+
+#     context_parts.append("📝 Column summaries:\n" + "\n".join(summaries))
+
+#     # ===== 3. Global dataset stats =====
+#     context_parts.append(
+#         f"📊 Missing values: {df.isna().sum().sum()} total "
+#         f"({df.isna().mean().mean()*100:.1f}% overall)"
+#     )
+#     context_parts.append(
+#         f"🔍 Duplicate rows: {df.duplicated().sum()} "
+#         f"({df.duplicated().mean()*100:.1f}% of dataset)"
+#     )
+
+#     # ===== 4. Sample rows (head + random sample) =====
+#     head_sample = df.head(3).to_dict(orient="records")
+#     rand_sample = df.sample(min(sample_size, len(df)), random_state=42).to_dict(orient="records")
+#     context_parts.append(f"👀 First rows (preview): {head_sample}")
+#     context_parts.append(f"🎲 Random sample rows: {rand_sample}")
+
+#     # ===== 5. Semantic cues =====
+#     # A lightweight heuristic “description” the AI can use.
+#     numeric_cols = df.select_dtypes(include=np.number).shape[1]
+#     cat_cols = df.select_dtypes(exclude=np.number).shape[1]
+#     context_parts.append(
+#         f"💡 Dataset seems to contain {numeric_cols} numeric features and {cat_cols} categorical/text features."
+#     )
+
+#     return "\n\n".join(context_parts)
 
 
-def make_ai_context(df: pd.DataFrame, filename: str, sample_size: int = 5) -> str:
-    context_parts = []
+def make_ai_context(df: pd.DataFrame, filename: str) -> str:
+    """
+    Generates a comprehensive, token-efficient, and robust summary of a DataFrame in YAML format.
+    """
+    # Create a copy to avoid modifying the original DataFrame during type inference
+    df_analysis = df.copy()
 
-    # ===== 1. File-level metadata =====
-    context_parts.append(f"📂 Dataset name: {filename}")
-    context_parts.append(f"📐 Shape: {df.shape[0]} rows x {df.shape[1]} columns")
+    # --- 1. Robust Type Inference ---
+    # Attempt to convert object columns to more specific types
+    for col in df_analysis.select_dtypes(include=['object']).columns:
+        try:
+            df_analysis[col] = pd.to_numeric(df_analysis[col])
+        except (ValueError, TypeError):
+            try:
+                df_analysis[col] = pd.to_datetime(df_analysis[col], errors='coerce')
+            except (ValueError, TypeError):
+                pass # Keep as object if conversions fail
 
-    # ===== 2. Column summaries =====
-    summaries = []
-    for col in df.columns:
-        dtype = str(df[col].dtype)
-        missing_pct = df[col].isna().mean() * 100
-        unique_vals = df[col].nunique(dropna=True)
+    # --- 2. Build Context Dictionary ---
+    context = {
+        'dataset_info': {
+            'name': filename,
+            'rows': df.shape[0],
+            'columns': df.shape[1],
+            'total_missing_values': f"{df.isna().sum().sum()} ({df.isna().mean().mean():.1%})",
+            'duplicate_rows': f"{df.duplicated().sum()} ({df.duplicated().mean():.1%})"
+        },
+        'column_summaries': {}
+    }
 
-        if pd.api.types.is_numeric_dtype(df[col]):
-            desc = df[col].describe(percentiles=[.25, .5, .75])
-            outliers = ((df[col] < (desc['25%'] - 1.5 * (desc['75%'] - desc['25%']))) |
-                        (df[col] > (desc['75%'] + 1.5 * (desc['75%'] - desc['25%'])))).sum()
-            col_summary = (
-                f"{col} (numeric) — {dtype}, {unique_vals} unique, "
-                f"missing: {missing_pct:.1f}%, "
-                f"min: {desc['min']}, Q1: {desc['25%']}, median: {desc['50%']}, "
-                f"Q3: {desc['75%']}, max: {desc['max']}, "
-                f"mean: {desc['mean']:.2f}, std: {desc['std']:.2f}, "
-                f"outliers: {outliers}"
-            )
+    # --- 3. Detailed Column Summaries ---
+    summaries = {}
+    for col in df_analysis.columns:
+        series = df_analysis[col]
+        dtype = str(series.dtype)
+        summary = {
+            'dtype': dtype,
+            'missing': f"{series.isna().mean():.1%}",
+            'unique_values': series.nunique()
+        }
 
-        elif pd.api.types.is_datetime64_any_dtype(df[col]):
-            col_summary = (
-                f"{col} (datetime) — {dtype}, {unique_vals} unique, "
-                f"missing: {missing_pct:.1f}%, "
-                f"range: {df[col].min()} → {df[col].max()}"
-            )
+        if pd.api.types.is_numeric_dtype(series):
+            desc = series.describe()
+            summary['type'] = 'numeric'
+            summary['stats'] = {
+                'mean': round(desc['mean'], 2),
+                'std': round(desc['std'], 2),
+                'min': desc['min'],
+                'q1': desc['25%'],
+                'median': desc['50%'],
+                'q3': desc['75%'],
+                'max': desc['max']
+            }
+        elif pd.api.types.is_datetime64_any_dtype(series):
+            summary['type'] = 'datetime'
+            summary['stats'] = {
+                'min': str(series.min()),
+                'max': str(series.max())
+            }
+        else: # Categorical/Object
+            summary['type'] = 'categorical'
+            # Check for high cardinality (e.g., ID columns)
+            if series.nunique() / len(series.dropna()) > 0.8:
+                 summary['is_high_cardinality'] = True
+            else:
+                summary['top_values'] = series.value_counts(normalize=True).head(3).round(2).to_dict()
 
-        else:  # categorical or text
-            top_vals = df[col].value_counts(dropna=True).head(3).to_dict()
-            col_summary = (
-                f"{col} (categorical/text) — {dtype}, {unique_vals} unique, "
-                f"missing: {missing_pct:.1f}%, "
-                f"top values: {top_vals}"
-            )
+        summaries[col] = summary
+    context['column_summaries'] = summaries
 
-        summaries.append(col_summary)
+    # --- 4. Correlation Analysis (Deeper Insights) ---
+    numeric_cols = df_analysis.select_dtypes(include=np.number)
+    if len(numeric_cols.columns) > 1:
+        corr_matrix = numeric_cols.corr().abs()
+        # Find pairs with high correlation, avoiding self-correlation
+        sol = corr_matrix.unstack()
+        so = sol.sort_values(kind="quicksort", ascending=False)
+        strong_corrs = so[(so > 0.7) & (so < 1)] # Threshold of 0.7
+        
+        corr_summary = []
+        seen_pairs = set()
+        for (col1, col2), val in strong_corrs.items():
+            if frozenset([col1, col2]) not in seen_pairs:
+                corr_summary.append(f"{col1} and {col2} ({val:.2f})")
+                seen_pairs.add(frozenset([col1, col2]))
+        
+        if corr_summary:
+            context['key_correlations'] = corr_summary
 
-    context_parts.append("📝 Column summaries:\n" + "\n".join(summaries))
-
-    # ===== 3. Global dataset stats =====
-    context_parts.append(
-        f"📊 Missing values: {df.isna().sum().sum()} total "
-        f"({df.isna().mean().mean()*100:.1f}% overall)"
-    )
-    context_parts.append(
-        f"🔍 Duplicate rows: {df.duplicated().sum()} "
-        f"({df.duplicated().mean()*100:.1f}% of dataset)"
-    )
-
-    # ===== 4. Sample rows (head + random sample) =====
-    head_sample = df.head(3).to_dict(orient="records")
-    rand_sample = df.sample(min(sample_size, len(df)), random_state=42).to_dict(orient="records")
-    context_parts.append(f"👀 First rows (preview): {head_sample}")
-    context_parts.append(f"🎲 Random sample rows: {rand_sample}")
-
-    # ===== 5. Semantic cues =====
-    # A lightweight heuristic “description” the AI can use.
-    numeric_cols = df.select_dtypes(include=np.number).shape[1]
-    cat_cols = df.select_dtypes(exclude=np.number).shape[1]
-    context_parts.append(
-        f"💡 Dataset seems to contain {numeric_cols} numeric features and {cat_cols} categorical/text features."
-    )
-
-    return "\n\n".join(context_parts)
+    # --- 5. Convert to YAML String ---
+    # Use sort_keys=False to maintain order. indent=2 for readability.
+    return yaml.dump(context, sort_keys=False, indent=2)
 
 
+# SYSTEM_INSTRUCTION = """
+# # ROLE: JSON Data API
+# You are a headless data analysis API. Your sole function is to process user requests about a dataset and return a single, valid JSON object. You do not engage in conversation or produce any text outside of the specified JSON structure. Any deviation from this format is a critical failure.
+
+# # CRITICAL RULE: JSON OUTPUT ONLY
+# - Your ENTIRE output, without exception, MUST be a single, valid JSON object.
+# - DO NOT add any text, explanations, apologies, or markdown like ```json before or after the JSON object.
+# - The backend system relies exclusively on this JSON format to function.
+
+# {
+#   "response": {
+#     "code": "Python code runnable as-is that prints a result. The code should be self-contained and not include conversational print statements like 'Here are the results...'. That belongs in the 'text' field.",
+#     "execution_results": "{{TO_BE_FILLED_BY_BACKEND}}",
+#     "text": "A short, clear explanation for the user in valid HTML. Use {{EXECUTION_RESULT}} as a placeholder where the output of your 'code' will be injected by the backend."
+#   }
+# }
+
+# ---
+# # GOAL & BEHAVIOR
+# You are a senior data assistant helping non-technical users. Your 'text' field should be helpful and human-like; it should blend in seamlessly with the exxecution result, but your overall output must adhere to the JSON structure.
+
+# ---
+# # RULES FOR CODE GENERATION
+# - The dataset is pre-loaded into a pandas DataFrame named `df`.
+# - Never import libraries (like pandas, numpy) or read files. They are already available.
+# - Your code MUST handle empty or no-result scenarios gracefully by printing a user-friendly message (e.g., `print("No results found for your query.")`).
+# - **For DataFrames:** Always use `print(df.to_html(classes='dataframe', index=False))` to output tables.
+# - **For pandas Series:** A Series (like from `value_counts()`) MUST be converted to a DataFrame before outputting. Use `print(my_series.to_frame().to_html(classes='dataframe'))`.
+# - **For Lists/Tuples:** Format them for readability. For example: `rows, cols = df.shape\\nprint(f"The dataset has {rows} rows and {cols} columns.")` instead of just printing the tuple.
+
+# """
 
 
 SYSTEM_INSTRUCTION = """
@@ -143,11 +268,19 @@ You are a senior data assistant helping non-technical users. Your 'text' field s
 ---
 # RULES FOR CODE GENERATION
 - The dataset is pre-loaded into a pandas DataFrame named `df`.
-- Never import libraries (like pandas, numpy) or read files. They are already available.
-- Your code MUST handle empty or no-result scenarios gracefully by printing a user-friendly message (e.g., `print("No results found for your query.")`).
-- **For DataFrames:** Always use `print(df.to_html(classes='dataframe', index=False))` to output tables.
-- **For pandas Series:** A Series (like from `value_counts()`) MUST be converted to a DataFrame before outputting. Use `print(my_series.to_frame().to_html(classes='dataframe'))`.
-- **For Lists/Tuples:** Format them for readability. For example: `rows, cols = df.shape\\nprint(f"The dataset has {rows} rows and {cols} columns.")` instead of just printing the tuple.
+- Never import libraries or read files.
+- Your code MUST handle empty or no-result scenarios gracefully by printing a user-friendly message.
+- Before performing any date-based filtering, ensure the relevant column is converted to a datetime format using `pd.to_datetime(df['column_name'], errors='coerce')`.
+
+
+# RULES FOR OUTPUT FORMATTING
+- **NO NESTED COLUMNS:** After any `groupby` or aggregation, you MUST flatten the column headers. Never output a DataFrame with a `MultiIndex`.
+  - **Correct Way:** `result = df.groupby('Category').size().reset_index(name='Count')`
+  - **Incorrect Way:** `result = df.groupby('Category').agg({'Category': ['count']})`
+- **TABLES:** For DataFrames, always use `print(df.to_html(classes='dataframe', index=False))`.
+- **SERIES:** A pandas Series (like from `value_counts()`) MUST be converted to a DataFrame with `.to_frame()` before calling `.to_html()`.
+- **LISTS:** If the final result is a list of items (e.g., a list of disaster names), convert it to a clean, comma-separated string before printing. Use `print(', '.join(my_list))`. Do not print a raw Python list.
+- **SINGLE VALUES:** For single numbers or facts (like shape), print them in a full sentence. Example: `rows, cols = df.shape\\nprint(f"The dataset has {rows} rows and {cols} columns.")`
 """
 
 # After a file with valid extension has been uploaded, this function reads and loads the file (excel/csv)
