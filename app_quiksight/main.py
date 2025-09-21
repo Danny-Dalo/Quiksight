@@ -11,12 +11,6 @@ templates = Jinja2Templates("app_quiksight/templates")
 
 app = FastAPI()
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-app = FastAPI()
-
-
 
 
 app.mount("/static", StaticFiles(directory="app_quiksight/static"), name="static")
