@@ -8,7 +8,7 @@
 - As user sends the message, the "send" button should be disabled to avoid going over quota limit so fast
 - Outputted a markdown instead of html response
 - model inconsistencies in some responses
-
+- Improve UI/UX 
  
 
 
