@@ -3,14 +3,12 @@ from .routes import upload, chat
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
-from fastapi.middleware.cors import CORSMiddleware
 
 
 
 templates = Jinja2Templates("app_quiksight/templates")
 
 app = FastAPI()
-
 
 
 app.mount("/static", StaticFiles(directory="app_quiksight/static"), name="static")

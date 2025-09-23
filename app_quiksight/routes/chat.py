@@ -9,7 +9,6 @@ import os, io, sys
 import pandas as pd
 import numpy as np
 import json
-import re
 
 from .upload import session_store   # import to use the generated session ID from upload
 from api_training2.config import GEMINI_API_KEY
