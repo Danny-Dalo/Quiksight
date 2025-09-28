@@ -29,7 +29,7 @@ router = APIRouter()
 
 
 
-
+from datetime import datetime
 
 
 # Display the chat.html page
@@ -69,7 +69,10 @@ async def chat_page(request : Request, sid : str):
         "num_columns" : len(dataframe.columns),
         "columns" : columns,
 
-        "preview_rows" : session_data["preview_rows"]
+        "preview_rows" : session_data["preview_rows"],
+
+        # ===================================================
+        "cache_buster": datetime.now().timestamp()
     })
 
 

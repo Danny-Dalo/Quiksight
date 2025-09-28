@@ -8,6 +8,9 @@ import pandas as pd
 import io, csv
 import numpy as np
 
+
+from typing import Union, Dict
+
 from api_training2.config import GEMINI_API_KEY
 import uuid
 
@@ -44,12 +47,101 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 
-def make_ai_context(df: pd.DataFrame, filename: str, sample_size: int = 5) -> str:
+# def make_ai_context(df: pd.DataFrame, filename: str, sample_size: int = 5) -> str:
+
+#     context_parts = []
+
+#     # ===== 1. File-level metadata =====
+#     context_parts.append(f"📂 Dataset name: {filename}")
+#     context_parts.append(f"📐 Shape: {df.shape[0]} rows x {df.shape[1]} columns")
+
+#     # ===== 2. Column summaries =====
+#     summaries = []
+#     for col in df.columns:
+#         dtype = str(df[col].dtype)
+#         missing_pct = df[col].isna().mean() * 100
+#         unique_vals = df[col].nunique(dropna=True)
+
+#         if pd.api.types.is_numeric_dtype(df[col]):
+#             desc = df[col].describe(percentiles=[.25, .5, .75])
+#             outliers = ((df[col] < (desc['25%'] - 1.5 * (desc['75%'] - desc['25%']))) |
+#                         (df[col] > (desc['75%'] + 1.5 * (desc['75%'] - desc['25%'])))).sum()
+#             col_summary = (
+#                 f"{col} (numeric) — {dtype}, {unique_vals} unique, "
+#                 f"missing: {missing_pct:.1f}%, "
+#                 f"min: {desc['min']}, Q1: {desc['25%']}, median: {desc['50%']}, "
+#                 f"Q3: {desc['75%']}, max: {desc['max']}, "
+#                 f"mean: {desc['mean']:.2f}, std: {desc['std']:.2f}, "
+#                 f"outliers: {outliers}"
+#             )
+
+#         elif pd.api.types.is_datetime64_any_dtype(df[col]):
+#             col_summary = (
+#                 f"{col} (datetime) — {dtype}, {unique_vals} unique, "
+#                 f"missing: {missing_pct:.1f}%, "
+#                 f"range: {df[col].min()} → {df[col].max()}"
+#             )
+
+#         else:  # categorical or text
+#             top_vals = df[col].value_counts(dropna=True).head(3).to_dict()
+#             col_summary = (
+#                 f"{col} (categorical/text) — {dtype}, {unique_vals} unique, "
+#                 f"missing: {missing_pct:.1f}%, "
+#                 f"top values: {top_vals}"
+#             )
+
+#         summaries.append(col_summary)
+
+#     context_parts.append("📝 Column summaries:\n" + "\n".join(summaries))
+
+#     # ===== 3. Global dataset stats =====
+#     context_parts.append(
+#         f"📊 Missing values: {df.isna().sum().sum()} total "
+#         f"({df.isna().mean().mean()*100:.1f}% overall)"
+#     )
+#     context_parts.append(
+#         f"🔍 Duplicate rows: {df.duplicated().sum()} "
+#         f"({df.duplicated().mean()*100:.1f}% of dataset)"
+#     )
+
+#     # ===== 4. Sample rows (head + random sample) =====
+#     head_sample = df.head(3).to_dict(orient="records")
+#     rand_sample = df.sample(min(sample_size, len(df)), random_state=42).to_dict(orient="records")
+#     context_parts.append(f"👀 First rows (preview): {head_sample}")
+#     context_parts.append(f"🎲 Random sample rows: {rand_sample}")
+
+#     # ===== 5. Semantic cues =====
+#     # A lightweight heuristic “description” the AI can use.
+#     numeric_cols = df.select_dtypes(include=np.number).shape[1]
+#     cat_cols = df.select_dtypes(exclude=np.number).shape[1]
+#     context_parts.append(
+#         f"💡 Dataset seems to contain {numeric_cols} numeric features and {cat_cols} categorical/text features."
+#     )
+
+#     return "\n\n".join(context_parts)
+
+
+
+
+def make_ai_context(df: Union[pd.DataFrame, Dict[str, pd.DataFrame]], filename: str, sample_size: int = 5) -> str:
+    if isinstance(df, pd.DataFrame):
+        return _build_context_for_df(df, filename, sample_size)
+    else:
+        # Multi-sheet: Build context for each
+        contexts = []
+        for sheet_name, df in df.items():
+            contexts.append(f"📑 Sheet: {sheet_name}\n" + _build_context_for_df(df, filename, sample_size))
+        return "\n\n---\n\n".join(contexts)
+
+
+def _build_context_for_df(df: pd.DataFrame, filename: str, sample_size: int) -> str:
     context_parts = []
 
-    # ===== 1. File-level metadata =====
+    # Existing: File-level metadata
     context_parts.append(f"📂 Dataset name: {filename}")
     context_parts.append(f"📐 Shape: {df.shape[0]} rows x {df.shape[1]} columns")
+
+    # Existing: Column summaries (unchanged, for brevity)
 
     # ===== 2. Column summaries =====
     summaries = []
@@ -100,54 +192,58 @@ def make_ai_context(df: pd.DataFrame, filename: str, sample_size: int = 5) -> st
         f"({df.duplicated().mean()*100:.1f}% of dataset)"
     )
 
-    # ===== 4. Sample rows (head + random sample) =====
-    head_sample = df.head(3).to_dict(orient="records")
-    rand_sample = df.sample(min(sample_size, len(df)), random_state=42).to_dict(orient="records")
-    context_parts.append(f"👀 First rows (preview): {head_sample}")
-    context_parts.append(f"🎲 Random sample rows: {rand_sample}")
+    # New: Structural Insights
+    context_parts.append("🧩 Structural Insights:")
 
-    # ===== 5. Semantic cues =====
-    # A lightweight heuristic “description” the AI can use.
-    numeric_cols = df.select_dtypes(include=np.number).shape[1]
-    cat_cols = df.select_dtypes(exclude=np.number).shape[1]
-    context_parts.append(
-        f"💡 Dataset seems to contain {numeric_cols} numeric features and {cat_cols} categorical/text features."
-    )
+    # Detect fully empty rows and columns
+    empty_rows = df.isnull().all(axis=1).sum()
+    empty_cols = df.isnull().all(axis=0).sum()
+    context_parts.append(f"  - Fully empty rows: {empty_rows} ({empty_rows / df.shape[0] * 100:.1f}%)")
+    context_parts.append(f"  - Fully empty columns: {empty_cols} ({empty_cols / df.shape[1] * 100:.1f}%)")
+
+    # Detect data blocks (contiguous non-empty rows)
+    non_empty_mask = ~df.isnull().all(axis=1)
+    block_starts = np.where(non_empty_mask & ~non_empty_mask.shift(fill_value=False))[0]
+    block_ends = np.where(non_empty_mask & ~non_empty_mask.shift(-1, fill_value=False))[0]
+    blocks = []
+    for start, end in zip(block_starts, block_ends):
+        block_size = end - start + 1
+        if block_size > 1:  # Ignore single-row "blocks" (likely notes)
+            blocks.append(f"Data block from row {start+1} to {end+1} ({block_size} rows)")
+    if blocks:
+        context_parts.append("  - Potential multiple tables/sections:\n    " + "\n    ".join(blocks))
+    else:
+        context_parts.append("  - Appears as a single contiguous table.")
+
+    # Column fill patterns (e.g., columns with data only in certain ranges)
+    col_patterns = []
+    for col in df.columns:
+        non_null_idx = df[col].notnull()
+        if non_null_idx.sum() > 0:
+            first_data = non_null_idx.idxmax() + 1
+            last_data = non_null_idx[::-1].idxmax() + 1
+            gaps = (non_null_idx.diff() > 1).sum()  # Rough gap count
+            col_patterns.append(f"{col}: Data from row {first_data} to {last_data}, {gaps} gaps")
+    if col_patterns:
+        context_parts.append("  - Column data ranges:\n    " + "\n    ".join(col_patterns))
+
+    # Existing: Samples, but improved
+    # Head + tail + samples from blocks
+    head_sample = df.head(3).to_dict(orient="records")
+    tail_sample = df.tail(3).to_dict(orient="records")
+    rand_samples = []
+    for start, end in zip(block_starts, block_ends):
+        block_df = df.iloc[start:end+1]
+        rand_samples.extend(block_df.sample(min(sample_size // len(blocks) + 1, len(block_df)), random_state=42).to_dict(orient="records"))
+    context_parts.append(f"👀 First rows: {head_sample}")
+    context_parts.append(f"👀 Last rows: {tail_sample}")
+    context_parts.append(f"🎲 Samples from sections: {rand_samples}")
+
+    # Existing: Semantic cues (unchanged)
 
     return "\n\n".join(context_parts)
 
 
-# SYSTEM_INSTRUCTION = """
-# # ROLE: JSON Data API
-# You are a headless data analysis API. Your sole function is to process user requests about a dataset and return a single, valid JSON object. You do not engage in conversation or produce any text outside of the specified JSON structure. Any deviation from this format is a critical failure.
-
-# # CRITICAL RULE: JSON OUTPUT ONLY
-# - Your ENTIRE output, without exception, MUST be a single, valid JSON object.
-# - DO NOT add any text, explanations, apologies, or markdown like ```json before or after the JSON object.
-# - The backend system relies exclusively on this JSON format to function.
-
-# {
-#   "response": {
-#     "code": "Python code runnable as-is that prints a result. The code should be self-contained and not include conversational print statements like 'Here are the results...'. That belongs in the 'text' field.",
-#     "execution_results": "{{TO_BE_FILLED_BY_BACKEND}}",
-#     "text": "A short, clear explanation for the user in valid HTML. Use {{EXECUTION_RESULT}} as a placeholder where the output of your 'code' will be injected by the backend."
-#   }
-# }
-
-# ---
-# # GOAL & BEHAVIOR
-# You are a senior data assistant helping non-technical users. Your 'text' field should be helpful and human-like; it should blend in seamlessly with the exxecution result, but your overall output must adhere to the JSON structure.
-
-# ---
-# # RULES FOR CODE GENERATION
-# - The dataset is pre-loaded into a pandas DataFrame named `df`.
-# - Never import libraries (like pandas, numpy) or read files. They are already available.
-# - Your code MUST handle empty or no-result scenarios gracefully by printing a user-friendly message (e.g., `print("No results found for your query.")`).
-# - **For DataFrames:** Always use `print(df.to_html(classes='dataframe', index=False))` to output tables.
-# - **For pandas Series:** A Series (like from `value_counts()`) MUST be converted to a DataFrame before outputting. Use `print(my_series.to_frame().to_html(classes='dataframe'))`.
-# - **For Lists/Tuples:** Format them for readability. For example: `rows, cols = df.shape\\nprint(f"The dataset has {rows} rows and {cols} columns.")` instead of just printing the tuple.
-
-# """
 
 
 SYSTEM_INSTRUCTION = """
@@ -189,21 +285,57 @@ You are a senior data assistant helping non-technical users. Your 'text' field s
 - **SINGLE VALUES:** For single numbers or facts (like shape), print them in a full sentence. Example: `rows, cols = df.shape\\nprint(f"The dataset has {rows} rows and {cols} columns.")`
 """
 
-# After a file with valid extension has been uploaded, this function reads and loads the file (excel/csv)
-def read_file(file: UploadFile) -> pd.DataFrame:
-    raw = file.file.read()
-    if file.filename.lower().endswith(".csv"):
+
+# Return type because the return type of the function can be a dictionary of file sheets as well
+DataFrameOrDict = Union[pd.DataFrame, Dict[str, pd.DataFrame]] 
+
+
+def read_file(file: UploadFile) -> DataFrameOrDict:
+    """
+    Reads an uploaded file (CSV or Excel) and returns a DataFrame
+    or a dict of DataFrames (if file has multiple sheets).
+    """
+
+    filename = file.filename.lower()
+
+    # ---- CSV Handling ----
+    if filename.endswith(".csv"):
         for encoding in ["utf-8", "latin1", "iso-8859-1", "cp1252"]:
             try:
-                return pd.read_csv(io.StringIO(raw.decode(encoding)),
-                                   engine="python", quotechar='"',
+                file.file.seek(0)
+                # when file is read, pointer reads it and goes to the end (like when you read a book)
+                # If a previous read failed, the cursor is already at the end so it would be seen as empty if you try again
+                # .seek() resets it back to the beginning (going back to the beginning of the book) to read again
+                return pd.read_csv(file.file,
+                                   encoding=encoding,
+                                   engine="python",
+                                   quotechar='"',
                                    quoting=csv.QUOTE_MINIMAL,
-                                   skip_blank_lines=True)
+                                   skip_blank_lines=True,
+                                   )
             except UnicodeDecodeError:
                 continue
         raise ValueError("Unable to decode CSV with supported encodings.")
-    else:
-        return pd.read_excel(io.BytesIO(raw))
+
+    # ---- Excel Handling ----
+    file.file.seek(0)  # Reset before reading as binary
+    raw = file.file.read()
+
+    try:
+        xls = pd.ExcelFile(io.BytesIO(raw))
+    except Exception as e:
+        raise ValueError(f"Failed to read Excel file: {e}")
+
+    sheets = xls.sheet_names
+    if not sheets:
+        raise ValueError("No sheets found in Excel file.")
+
+    if len(sheets) != 1:
+        raise ValueError("Only Excel files with a single sheet are supported at this time.")
+
+    return pd.read_excel(xls, sheet_name=sheets[0])
+
+    
 
 
 
@@ -215,11 +347,11 @@ def read_file(file: UploadFile) -> pd.DataFrame:
 @router.post("/upload", response_class=HTMLResponse)
 async def upload_file(request: Request, file: UploadFile = File(...)):
 
-    # 1. Check if there was a file uploaded
+    # Check if there was a file uploaded
     if not file or file.filename == "":
         return templates.TemplateResponse("home.html", {"request": request, "error": "Please upload a file"})
     
-    #  Check file size (limit: 30MB)
+    # Check file size (Maximum 30MB)
     file.file.seek(0, os.SEEK_END)
     file_size_bytes = file.file.tell()
     file.file.seek(0)
@@ -230,7 +362,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
             "error": "File too large. Maximum allowed size is 30MB."
         })
 
-    # 2. Validate extension of file to make sure it's only an excel or a CSV file beimg uploaded
+    # Validate extension of file to make sure it's only an excel or a CSV file being uploaded
     _, ext = os.path.splitext(file.filename.lower())
     if ext not in ALLOWED_EXTENSIONS:
         return templates.TemplateResponse("home.html", {
@@ -240,7 +372,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     
 
     try:
-        # 3. Read file
+        # Read file
         df = read_file(file)
 
         # 4. Build file context for the model to have an overview of the file
@@ -275,7 +407,6 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         session_store[session_id] = {
             "df": df,
             "chat_session": chat_session,
-            # "context": ai_context,
 
             "file_name": file.filename,
             "file_size": file_size,
