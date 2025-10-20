@@ -23,6 +23,13 @@ async def home(request : Request):
 @app.get("/ping")
 async def ping():
     return {"status": "alive"}
+
+from fastapi import Response
+
+@app.head("/ping")
+async def head_ping():
+    return Response(status_code=200)
+
 # =====================================================
 
 
