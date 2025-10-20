@@ -19,6 +19,12 @@ app.mount("/static", StaticFiles(directory="app_quiksight/static"), name="static
 async def home(request : Request):
     return templates.TemplateResponse("home.html", {"request" : request})
 
+# ============================================================
+@app.get("/ping")
+async def ping():
+    return {"status": "alive"}
+# =====================================================
+
 
 app.include_router(upload.router, tags=["upload"])
 
