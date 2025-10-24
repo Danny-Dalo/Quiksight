@@ -69,6 +69,7 @@ textarea.addEventListener('input', () => {
 
     appendMessage("ai", '<span class="loading loading-dots loading-md"></span>');      // AI thinking animation
 
+    // API Call
     try {
       // Sending the message as a JSON string to the chat endpoint
       const res = await fetch(`/chat?sid=${sessionID}`, {
@@ -84,13 +85,16 @@ textarea.addEventListener('input', () => {
 
       let aiResponse = "";             // By default, the AI response is nothing
       if (data.response.text) {aiResponse += `
-        <div style="padding: 6px; margin-bottom: 8px;">
-          ${data.response.text}
-        </div>`;   // aiResponse becomes the text reponse that the AI returns
+          ${data.response.text}`;   // aiResponse becomes the text reponse that the AI returns
       }
+      // if (data.response.text) {aiResponse += `
+      //   <div style="padding: 6px; margin-bottom: 8px;">
+      //     ${data.response.text}
+      //   </div>`;   // aiResponse becomes the text reponse that the AI returns
+      // }
 
       
-      // MONITORING THE CODE AI GENERATES
+      // // MONITORING THE CODE AI GENERATES
       // if (data.response.code) {
       //       aiResponse += `
       //   <pre style="border: 1px solid blue; padding: 6px; margin-bottom: 8px; background:#f9f9f9;">
@@ -98,8 +102,12 @@ textarea.addEventListener('input', () => {
       //   </pre>`;    // if there is code generated, it's added to the AI's response
       // }
 
+      // // MONITORING THE EXECUTION RESULT PROVIDED
+      if (data.response.execution_results) {
+        aiResponse += `
+              ${data.response.execution_results}`;   // if the code has  results, it's added to the AI's response as well
+      }
 
-      // MONITORING THE EXECUTION RESULT PROVIDED
       // if (data.response.execution_results) {
       //   aiResponse += `
       //     <div style="border: 1px solid green; padding: 6px; margin-bottom: 8px; white-space: pre-wrap; font-family: monospace;">
@@ -114,10 +122,10 @@ textarea.addEventListener('input', () => {
 
       // CATCH AND THROW ANY ERRORS THAT MAY COME UP IN A USER-FRIENDLY WAY
     } catch (err) {               
-      chatMessages.lastChild.remove();          
-      appendMessage("ai", `<span style="color:red;">There was an error in the request. Try again</span>`);       
-      appendMessage("ai", `<br/><span style="color:red;">Error: ${err.message}</span>`);       
-      //if ann error occurs, it removes the last AI response and replces it with the error message
+      chatMessages.lastChild.remove();       
+      appendMessage("ai", `<span style="color:red;">Oops! Something went wrong. Please try sending your message again.</span>`);
+    
+      //if an error occurs, it removes the last AI response and replaces it with the error message
     }
   }
 
@@ -125,3 +133,27 @@ textarea.addEventListener('input', () => {
   messageInput.addEventListener("keypress", e => {  // 'Enter' key sends the message as well 
     if (e.key === "Enter") sendMessage();
   });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

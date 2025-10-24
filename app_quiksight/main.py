@@ -20,6 +20,9 @@ async def home(request : Request):
     return templates.TemplateResponse("home.html", {"request" : request})
 
 # ============================================================
+# Render hosting service spins down after a while
+# So we send a get request every 10 mins to make sure the site is always up and running
+# Users don't have to wait for the render load up time
 @app.get("/ping")
 async def ping():
     return {"status": "alive"}

@@ -1,5 +1,5 @@
 /* Styling for user message bubble */
-.user-bubble {
+/* .user-bubble {
     background: linear-gradient(90deg, #3b82f6 0%, #6366f1 100%);
     color: #fff;
     padding: 0.75rem 1.25rem;
@@ -9,28 +9,28 @@
     margin-bottom: 0.25rem;
     box-shadow: 0 2px 8px rgba(59, 130, 246, 0.08);
     word-break: break-word;
-  }
+  } */
 
 
 
 /* Styling for AI mmessage bubble */
-  .ai-message {
-    background: none;
+  /* .ai-message { */
+    /* background: none;
     color: #22223b;
     padding: 1rem 1.25rem;
     border-radius: 1.25rem;
     width: 100%;
     margin-bottom: 0.5rem;
     box-shadow: 0 2px 8px rgba(59, 130, 246, 0.04);
-  }
-
+  } */
+/* 
   .ai-content {
     font-size: 1rem;
     line-height: 1.6;
     margin-top: 0.25rem;
     word-break: break-word;
   }
-
+ */
 
   
 

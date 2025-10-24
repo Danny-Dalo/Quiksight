@@ -19,12 +19,12 @@
 # /out/
 
 # # Environment files
-# .env
-# .env.local
-# .env.development.local
-# .env.test.local
-# .env.production.local
-# .env*.local
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
 
 # # Debug logs
 # npm-debug.log*
@@ -81,5 +81,11 @@ __pycache__/
 test.py
 
 /quiksight_env
+.venv
+
+# Dependencies/Lock files
+uv.lock
+
+tempCodeRunnerFile.py
 
 
