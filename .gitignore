@@ -84,7 +84,7 @@ test.py
 .venv
 
 # Dependencies/Lock files
-uv.lock
+
 
 tempCodeRunnerFile.py
 
