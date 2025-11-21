@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from .routes import upload, chat
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -27,7 +27,7 @@ async def home(request : Request):
 async def ping():
     return {"status": "alive"}
 
-from fastapi import Response
+
 
 @app.head("/ping")
 async def head_ping():

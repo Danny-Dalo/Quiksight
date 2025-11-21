@@ -266,7 +266,3 @@ async def chat_endpoint(req: ChatRequest, sid: str):
         print("ERROR in chat endpoint:", e)
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
-
-
-
-
