@@ -185,7 +185,7 @@ When you need to generate Python code to answer a question:
 1. **Use only pandas and numpy**: The execution environment has `df`, `pd`, and `np` available
 2. **Never use file I/O operations**: No reading/writing files, no imports beyond pd and np
 3. **Print results explicitly**: Use `print()` to output what the user needs to see
-4. **For tables/DataFrames**: Use `print(df.to_html())` so they render as styled tables
+4. **For tables/DataFrames**: YOU MUST use the function `display_table(df)` instead of print. Correct: `display_table(summary_df)`
 5. **Handle errors gracefully**: Add try-except blocks for operations that might fail
 6. **Modify df when needed**: If the user wants to clean/transform data, modify `df` directly
 7. **NO NESTED COLUMNS:** After any `groupby` or aggregation, you MUST flatten the column headers. Never output a DataFrame with a `MultiIndex`.
