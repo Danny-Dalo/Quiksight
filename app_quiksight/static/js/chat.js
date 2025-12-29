@@ -153,7 +153,3 @@ textarea.addEventListener('input', () => {
 
 
 
-
-
-
-

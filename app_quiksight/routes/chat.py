@@ -289,15 +289,8 @@
 
 
 
-
-
-
-
-
-
-
-
-
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from fastapi import APIRouter, HTTPException, Request
 import traceback
@@ -312,10 +305,9 @@ import numpy as np
 import json
 import uuid
 
-# Assuming you moved session_store to store.py, otherwise import from upload
-# from .store import session_store 
+
 from .upload import session_store 
-from api_training2.config import GEMINI_API_KEY
+# from api_training2.config import GEMINI_API_KEY
 
 templates = Jinja2Templates(directory="app_quiksight/templates")
 
@@ -410,12 +402,12 @@ def execute_user_code(code: str, session_data: dict):
     sys.stdout = stdout_buffer
 
     try:
-        # Using a basic whitelist for builtins (MVP Security)
+        # Using a basic whitelist for builtins so AI can't just import whatever it wants (security)
         safe_builtins = {
             "len": len, "print": print, "range": range, "int": int, 
             "float": float, "str": str, "list": list, "dict": dict, 
             "round": round, "sum": sum, "min": min, "max": max,
-            "abs": abs, "enumerate": enumerate, "zip": zip
+            "abs": abs, "enumerate": enumerate, "zip": zip, "Exception" : Exception
         }
         
         exec(code, {"__builtins__": safe_builtins}, local_env)
@@ -429,7 +421,9 @@ def execute_user_code(code: str, session_data: dict):
             }
 
     except Exception as e:
-        print(f"<div class='alert alert-error text-sm mt-2'><span>Error executing code: {e}</span></div>")
+        print(traceback.format_exc())  # Terminal sees this
+        print(f"<div class='alert alert-error text-sm mt-2'><span>Oops! Something went wrong. Please try sending your message again.</span></div>")
+
     finally:
         sys.stdout = sys.__stdout__
 
@@ -494,6 +488,7 @@ async def chat_endpoint(req: ChatRequest, sid: str):
         ai_text = response_data[0]['text_explanation']
         code = response_data[0]['code_generated']
         should_execute = response_data[0]['should_execute']
+        print(response_data)
 
         execution_results = ""
         if should_execute and code:

@@ -17,7 +17,7 @@ app.mount("/static", StaticFiles(directory="app_quiksight/static"), name="static
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request : Request):
-    return templates.TemplateResponse("home.html", {"request" : request})
+    return templates.TemplateResponse(request=request, name="home.html")
 
 # ============================================================
 # Render hosting service spins down after a while
