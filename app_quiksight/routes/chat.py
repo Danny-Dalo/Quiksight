@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 from fastapi.templating import Jinja2Templates
 import datetime
+import logging
 
 import os, io, sys
 import pandas as pd
@@ -17,6 +18,16 @@ import uuid
 
 from .upload import session_store 
 # from api_training2.config import GEMINI_API_KEY
+
+# Configure logging (same format as upload.py)
+logger = logging.getLogger("CHAT")
+
+
+def log_section(title: str, char: str = "━"):
+    """Log a visual section divider for better readability."""
+    line = char * 50
+    logger.info(f"\n{line}\n  {title}\n{line}")
+
 
 templates = Jinja2Templates(directory="app_quiksight/templates")
 
@@ -82,6 +93,8 @@ def dataframe_to_styled_html(df: pd.DataFrame, download_id: str = None, max_rows
 # --- EXECUTION ENGINE ---
 def execute_user_code(code: str, session_data: dict):
     """Execute AI-generated code in a sandboxed environment."""
+    logger.info("   Executing AI-generated code...")
+    logger.debug(f"   Code length: {len(code)} chars")
     df = session_data["df"]
     
     # Helper function available to the AI
@@ -141,6 +154,7 @@ def execute_user_code(code: str, session_data: dict):
         }
         
         exec(code, {"__builtins__": safe_builtins}, local_env)
+        logger.info("   ✓ Code executed successfully")
         
         modified_df = local_env.get('df')
         # Only return modified_df if it actually changed
@@ -152,6 +166,7 @@ def execute_user_code(code: str, session_data: dict):
 
     except Exception as e:
         # Log full traceback to terminal for debugging
+        logger.error(f"   ✗ Code execution failed: {type(e).__name__}: {str(e)[:100]}")
         print(traceback.format_exc(), file=sys.__stderr__)
         
         # Show user-friendly error with hint
@@ -177,10 +192,14 @@ def execute_user_code(code: str, session_data: dict):
 
 @router.get("/chat", response_class=HTMLResponse)
 async def chat_page(request: Request, sid: str):
+    logger.info(f"\n💬 Chat page requested | Session: {sid[:8]}...")
+    
     if sid not in session_store:
+        logger.warning(f"   ✗ Session not found, redirecting to home")
         return RedirectResponse(url="/", status_code=303)
     
     session_data = session_store[sid]
+    logger.info(f"   ✓ Session found: {session_data['file_name']}")
     
     # Ensure downloads dict exists (backward compatibility)
     if "downloads" not in session_data:
@@ -210,14 +229,21 @@ class ChatRequest(BaseModel):
 
 @router.post("/chat")
 async def chat_endpoint(req: ChatRequest, sid: str):
+    log_section("💬 CHAT MESSAGE RECEIVED", "─")
+    logger.info(f"   Session: {sid[:8]}...")
+    logger.info(f"   Message: {req.message[:80]}{'...' if len(req.message) > 80 else ''}")
+    
     if sid not in session_store:
+        logger.error(f"   ✗ Session not found")
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     try:
         session_data = session_store[sid]
         chat_session = session_data["chat_session"]
 
+        logger.info("   Sending to Gemini API...")
         response = chat_session.send_message(req.message)
+        logger.info("   ✓ Response received from Gemini")
         
         # Clean JSON parsing
         response_text = response.text.replace('```json', '').replace('```', '')
@@ -232,7 +258,11 @@ async def chat_endpoint(req: ChatRequest, sid: str):
         ai_text = response_data[0]['text_explanation']
         code = response_data[0]['code_generated']
         should_execute = response_data[0]['should_execute']
-        # print(response_data)
+        
+        logger.info(f"   AI response parsed:")
+        logger.info(f"      Text: {len(ai_text)} chars")
+        logger.info(f"      Code: {'Yes' if code else 'No'} ({len(code)} chars)")
+        logger.info(f"      Execute: {should_execute}")
 
         execution_results = ""
         if should_execute and code:
@@ -241,9 +271,11 @@ async def chat_endpoint(req: ChatRequest, sid: str):
 
             if "modified_df" in exec_result:
                 session_data["df"] = exec_result["modified_df"]
+                logger.info("   📊 DataFrame was modified by code execution")
 
             execution_results = exec_result["response"].get("execution_results", "")
 
+        logger.info("   ✓ Response ready")
         return {
             "response": {
                 "text": ai_text,
@@ -252,7 +284,7 @@ async def chat_endpoint(req: ChatRequest, sid: str):
             }
         }
     except Exception as e:
-        # print(traceback.format_exc())
+        logger.error(f"   ✗ Chat endpoint error: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -263,20 +295,26 @@ async def chat_endpoint(req: ChatRequest, sid: str):
 # DOWNLOADING GENERATED TABLES
 @router.get("/chat/download/{download_id}")
 async def download_result(download_id: str):
+    logger.info(f"\n📥 Download requested | ID: {download_id[:8]}...")
+    
     # Search all sessions for this download ID (simple lookup)
     # In a database app, you'd query by ID.
     found_df = None
     for sid, data in session_store.items():
         if "downloads" in data and download_id in data["downloads"]:
             found_df = data["downloads"][download_id]
+            logger.info(f"   ✓ Found in session: {sid[:8]}...")
             break
     
     if found_df is None:
+        logger.warning(f"   ✗ Download not found")
         raise HTTPException(status_code=404, detail="File not found")
 
+    logger.info(f"   Generating CSV ({len(found_df)} rows)...")
     stream = io.StringIO()
     found_df.to_csv(stream, index=False)
     response = StreamingResponse(iter([stream.getvalue()]), media_type="text/csv")
     response.headers["Content-Disposition"] = "attachment; filename=quiksight_export.csv"
+    logger.info("   ✓ Download ready")
     return response
 

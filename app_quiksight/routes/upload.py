@@ -7,7 +7,7 @@ import os
 import pandas as pd
 import io, csv
 import numpy as np
-
+import logging
 
 from typing import Union, Dict
 
@@ -16,6 +16,20 @@ import uuid
 
 from google import genai
 from google.genai import types
+
+# Configure logging with cleaner format
+logging.basicConfig(
+    level=logging.INFO,
+    format='\n%(asctime)s | %(levelname)-8s | %(name)-10s | %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger("UPLOAD")
+
+
+def log_section(title: str, char: str = "━"):
+    """Log a visual section divider for better readability."""
+    line = char * 50
+    logger.info(f"\n{line}\n  {title}\n{line}")
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app_quiksight/templates")
@@ -30,21 +44,29 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ========== Need to review these functions ============
 def make_ai_context(df: Union[pd.DataFrame, Dict[str, pd.DataFrame]], filename: str, sample_size: int = 5) -> str:
+    logger.info(f"Building AI context for file: {filename}")
     if isinstance(df, pd.DataFrame):
+        logger.info(f"Processing single DataFrame with {len(df)} rows and {len(df.columns)} columns")
         return _build_context_for_df(df, filename, sample_size)
     else:
         # Multi-sheet: Build context for each
+        logger.info(f"Processing multi-sheet file with {len(df)} sheets: {list(df.keys())}")
         contexts = []
-        for sheet_name, df in df.items():
-            contexts.append(f"📑 Sheet: {sheet_name}\n" + _build_context_for_df(df, filename, sample_size))
+        for sheet_name, sheet_df in df.items():
+            logger.info(f"Building context for sheet: {sheet_name}")
+            contexts.append(f"📑 Sheet: {sheet_name}\n" + _build_context_for_df(sheet_df, filename, sample_size))
         return "\n\n---\n\n".join(contexts)
 
 
 def _build_context_for_df(df: pd.DataFrame, filename: str, sample_size: int) -> str:
     """Build a token-efficient context summary for the AI."""
+    logger.debug(f"Starting context build for {filename}")
     context_parts = []
     num_cols = len(df.columns)
     num_rows = len(df)
+    logger.info(f"DataFrame stats - Rows: {num_rows:,}, Columns: {num_cols}")
+    logger.debug(f"Column names: {list(df.columns)}")
+    logger.debug(f"Data types: {df.dtypes.to_dict()}")
     
     # Config for token efficiency
     MAX_COLS_DETAILED = 25  # Full stats for first N columns
@@ -101,12 +123,14 @@ def _build_context_for_df(df: pd.DataFrame, filename: str, sample_size: int) -> 
     empty_cols = df.isnull().all(axis=0).sum()
     
     if empty_rows > 0 or empty_cols > 0:
+        logger.warning(f"Data quality issue detected - Empty rows: {empty_rows}, Empty columns: {empty_cols}")
         context_parts.append(f" Structure: {empty_rows} empty rows, {empty_cols} empty columns")
     
     # Check for multiple data blocks (only report if fragmented)
     non_empty_mask = ~df.isnull().all(axis=1)
     block_starts = np.where(non_empty_mask & ~non_empty_mask.shift(fill_value=False))[0]
     if len(block_starts) > 1:
+        logger.warning(f"Data fragmentation detected - {len(block_starts)} separate data blocks found")
         context_parts.append(f" Data appears fragmented into {len(block_starts)} sections")
 
     # 5. Sample data (truncated for wide datasets)
@@ -124,6 +148,7 @@ def _build_context_for_df(df: pd.DataFrame, filename: str, sample_size: int) -> 
     if num_cols > MAX_SAMPLE_COLS:
         context_parts.append(f"(Sample shows first {MAX_SAMPLE_COLS} of {num_cols} columns)")
 
+    logger.info(f"AI context built successfully for {filename} ({len('\n\n'.join(context_parts))} chars)")
     return "\n\n".join(context_parts)
 # =======================================
 
@@ -203,45 +228,63 @@ def read_file(file: UploadFile) -> DataFrameOrDict:
     Reads an uploaded file (CSV or Excel) and returns a DataFrame
     or a dict of DataFrames if file has multiple sheets(feature not yet added).
     """
-
+    logger.info(f"Starting file read operation for: {file.filename}")
     filename = file.filename.lower()
 
     # ---- CSV Handling ----
     if filename.endswith(".csv"):
+        logger.info("Detected CSV file format")
         for encoding in ["utf-8", "latin1", "iso-8859-1", "cp1252"]:
             try:
+                logger.debug(f"Attempting to read CSV with encoding: {encoding}")
                 file.file.seek(0)
                 # when file is read, pointer reads it and goes to the end (like when you read a book)
                 # If a previous read failed, the cursor is already at the end so it would be seen as empty if you try again
                 # .seek() resets it back to the beginning (going back to the beginning of the book) to read again
-                return pd.read_csv(file.file,
+                df = pd.read_csv(file.file,
                                    encoding=encoding,
                                    engine="python",
                                    quotechar='"',
                                    quoting=csv.QUOTE_MINIMAL,
                                    skip_blank_lines=True,
                                    )
+                logger.info(f"CSV file read successfully with encoding: {encoding}")
+                logger.info(f"Loaded DataFrame: {len(df)} rows, {len(df.columns)} columns")
+                return df
             except UnicodeDecodeError:
+                logger.debug(f"Encoding {encoding} failed, trying next...")
                 continue
+        logger.error("Failed to decode CSV with any supported encoding")
         raise ValueError("Unable to decode CSV with supported encodings.")
 
     # ---- Excel Handling ----
+    logger.info("Detected Excel file format")
     file.file.seek(0)  # takes pointer to beginning of the file
     raw = file.file.read()
+    logger.debug(f"Read {len(raw)} bytes from Excel file")
 
     try:
         xls = pd.ExcelFile(io.BytesIO(raw))
+        logger.info(f"Excel file opened successfully")
     except Exception as e:
+        logger.error(f"Failed to open Excel file: {e}")
         raise ValueError(f"Failed to read Excel file: {e}")
 
     sheets = xls.sheet_names
+    logger.info(f"Found {len(sheets)} sheet(s): {sheets}")
+    
     if not sheets:
+        logger.error("No sheets found in Excel file")
         raise ValueError("No sheets found in Excel file.")
 
     if len(sheets) != 1:
+        logger.warning(f"Multiple sheets detected ({len(sheets)}), but only single sheet is supported")
         raise ValueError("Only Excel files with a single sheet are supported at this time.")
 
-    return pd.read_excel(xls, sheet_name=sheets[0])
+    df = pd.read_excel(xls, sheet_name=sheets[0])
+    logger.info(f"Excel file read successfully from sheet: {sheets[0]}")
+    logger.info(f"Loaded DataFrame: {len(df)} rows, {len(df.columns)} columns")
+    return df
 
 
 
@@ -257,39 +300,59 @@ class ModelResponse(BaseModel):
 # Uploaded files are validated and submitted to the chat endpoint for the AI model to use
 @router.post("/upload", response_class=HTMLResponse)
 async def upload_file(request: Request, file: UploadFile = File(...)):
+    log_section("📤 NEW FILE UPLOAD REQUEST")
 
     # Check if there was a file uploaded
     if not file or file.filename == "":
+        logger.warning("❌ Upload rejected: No file provided")
         return templates.TemplateResponse("home.html", {"request": request, "error": "Please upload a file"})
+    
+    logger.info(f"📁 File received: {file.filename}")
     
     # Check file size (Maximum 30MB)
     file.file.seek(0, os.SEEK_END)
     file_size_bytes = file.file.tell()
     file.file.seek(0)
     max_size_bytes = 30 * 1024 * 1024  # 30MB
+    logger.info(f"   Size: {file_size_bytes / 1024:.2f} KB ({file_size_bytes / (1024*1024):.2f} MB)")
+    
     if file_size_bytes > max_size_bytes:
+        logger.warning(f"❌ Rejected: File size exceeds 30MB limit")
         return templates.TemplateResponse("home.html", {
             "request": request,
             "error": "File too large. Maximum allowed size is 30MB."
         })
+    logger.info("   ✓ Size validation passed")
 
     # Validate extension of file to make sure it's only an excel or a CSV file being uploaded
     _, ext = os.path.splitext(file.filename.lower())
+    logger.info(f"   Extension: {ext}")
+    
     if ext not in ALLOWED_EXTENSIONS:
+        logger.warning(f"❌ Rejected: Invalid extension '{ext}'")
         return templates.TemplateResponse("home.html", {
             "request": request,
             "error": f"Invalid file type. Only {', '.join(ALLOWED_EXTENSIONS)} allowed"
         })
-    
+    logger.info("   ✓ Extension validation passed")
 
     try:
+        log_section("⚙️  PROCESSING PIPELINE", "─")
+        
         # Read file
+        logger.info("\n[1/4] 📖 Reading file contents...")
         df = read_file(file)
+        logger.info("      ✓ DataFrame loaded successfully")
 
         # 4. Build file context for the model to have an overview of the file
+        logger.info("\n[2/4] 🧠 Building AI context...")
         ai_context = make_ai_context(df, file.filename)
+        logger.info("      ✓ AI context generated")
         
-        # Creates a chat  session when previous steps have been done
+        # Creates a chat session when previous steps have been done
+        logger.info("\n[3/4] 🤖 Creating Gemini chat session...")
+        logger.info("      Model: gemini-flash-latest | Temp: 0.0")
+        
         chat_session = client.chats.create(
             # model="gemini-2.5-pro",
             # model="gemini-2.5-flash",
@@ -309,12 +372,13 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
                  temperature=0.0
             )
         )
-
-        
-       
+        logger.info("      ✓ Chat session created")
         
         # Save in memory
+        logger.info("\n[4/4] 💾 Storing session data...")
         session_id = str(uuid.uuid4())
+        logger.info(f"      Session ID: {session_id[:8]}...")
+        
         # Convert file size to KB (rounded to 2 decimals)
         size_kb = file.size / 1024
         if size_kb < 1024:
@@ -337,13 +401,24 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
 
             "preview_rows": df.head(5).to_dict(orient="records")
         }
+        
+        logger.info("      ✓ Session stored")
+        
+        log_section("✅ UPLOAD COMPLETE", "─")
+        logger.info(f"""   File: {file.filename}
+   Rows: {len(df):,}  |  Columns: {len(df.columns)}
+   Active sessions: {len(session_store)}""")
 
         
 
         # Redirect to chat page with session ID
+        logger.info(f"\n   → Redirecting to /chat?sid={session_id[:8]}...")
         return RedirectResponse(url=f"/chat?sid={session_id}", status_code=303)
 
     except Exception as e:
+        log_section("❌ UPLOAD FAILED", "═")
+        logger.error(f"   Type: {type(e).__name__}")
+        logger.error(f"   Message: {str(e)}")
         return templates.TemplateResponse("home.html", {"request": request, "error": str(e)})
 
 

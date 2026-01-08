@@ -23,14 +23,19 @@ async def home(request : Request):
 # Render hosting service spins down after a while
 # So we send a get request every 10 mins to make sure the site is always up and running
 # Users don't have to wait for the render load up time
+import logging
+
+logger = logging.getLogger(__name__)
+
 @app.get("/ping")
 async def ping():
+    logger.info("Ping endpoint hit")
     return {"status": "alive"}
-
 
 
 @app.head("/ping")
 async def head_ping():
+    logger.info("Head ping endpoint hit")
     return Response(status_code=200)
 
 # =====================================================
