@@ -13,6 +13,7 @@ from typing import Union, Dict
 
 from api_training2.config import GEMINI_API_KEY
 import uuid
+import time
 
 from google import genai
 from google.genai import types
@@ -338,20 +339,25 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
 
     try:
         log_section("⚙️  PROCESSING PIPELINE", "─")
+        pipeline_start = time.time()
         
         # Read file
         logger.info("\n[1/4] 📖 Reading file contents...")
+        step_start = time.time()
         df = read_file(file)
-        logger.info("      ✓ DataFrame loaded successfully")
+        logger.info(f"      ✓ DataFrame loaded ({time.time() - step_start:.2f}s)")
 
         # 4. Build file context for the model to have an overview of the file
         logger.info("\n[2/4] 🧠 Building AI context...")
+        step_start = time.time()
         ai_context = make_ai_context(df, file.filename)
-        logger.info("      ✓ AI context generated")
+        logger.info(f"      ✓ AI context generated ({time.time() - step_start:.2f}s)")
+        logger.info(f"      Context size: {len(ai_context):,} chars")
         
         # Creates a chat session when previous steps have been done
         logger.info("\n[3/4] 🤖 Creating Gemini chat session...")
         logger.info("      Model: gemini-flash-latest | Temp: 0.0")
+        step_start = time.time()
         
         chat_session = client.chats.create(
             # model="gemini-2.5-pro",
@@ -372,10 +378,11 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
                  temperature=0.0
             )
         )
-        logger.info("      ✓ Chat session created")
+        logger.info(f"      ✓ Chat session created ({time.time() - step_start:.2f}s)")
         
         # Save in memory
         logger.info("\n[4/4] 💾 Storing session data...")
+        step_start = time.time()
         session_id = str(uuid.uuid4())
         logger.info(f"      Session ID: {session_id[:8]}...")
         
@@ -402,12 +409,14 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
             "preview_rows": df.head(5).to_dict(orient="records")
         }
         
-        logger.info("      ✓ Session stored")
+        logger.info(f"      ✓ Session stored ({time.time() - step_start:.2f}s)")
         
+        total_time = time.time() - pipeline_start
         log_section("✅ UPLOAD COMPLETE", "─")
         logger.info(f"""   File: {file.filename}
    Rows: {len(df):,}  |  Columns: {len(df.columns)}
-   Active sessions: {len(session_store)}""")
+   Active sessions: {len(session_store)}
+   ⏱️  Total time: {total_time:.2f}s""")
 
         
 
