@@ -3,8 +3,9 @@ from .routes import upload, chat
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
+import logging
 
-
+logger = logging.getLogger(__name__)
 
 templates = Jinja2Templates("app_quiksight/templates")
 
@@ -17,15 +18,15 @@ app.mount("/static", StaticFiles(directory="app_quiksight/static"), name="static
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request : Request):
+    logger.info("Page request made")
     return templates.TemplateResponse(request=request, name="home.html")
+    logger.info("Page loaded")
 
 # ============================================================
 # Render hosting service spins down after a while
 # So we send a get request every 10 mins to make sure the site is always up and running
 # Users don't have to wait for the render load up time
-import logging
 
-logger = logging.getLogger(__name__)
 
 @app.get("/ping")
 async def ping():
