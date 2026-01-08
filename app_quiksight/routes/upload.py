@@ -2,7 +2,7 @@
 from fastapi import APIRouter, File, UploadFile, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-
+from fastapi.concurrency import run_in_threadpool
 import os
 import pandas as pd
 import io, csv
@@ -344,13 +344,20 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         # Read file
         logger.info("\n[1/4] 📖 Reading file contents...")
         step_start = time.time()
-        df = read_file(file)
+        # ***************************************************************************************************
+        # df = read_file(file)
+        df = await run_in_threadpool(read_file, file)
+        # ***************************************************************************************************
+
         logger.info(f"      ✓ DataFrame loaded ({time.time() - step_start:.2f}s)")
 
         # 4. Build file context for the model to have an overview of the file
         logger.info("\n[2/4] 🧠 Building AI context...")
         step_start = time.time()
-        ai_context = make_ai_context(df, file.filename)
+        # *********************************************************************************************
+        # ai_context = make_ai_context(df, file.filename)
+        ai_context = await run_in_threadpool(make_ai_context, df, file.filename)
+        # *************************************************************************************************
         logger.info(f"      ✓ AI context generated ({time.time() - step_start:.2f}s)")
         logger.info(f"      Context size: {len(ai_context):,} chars")
         
@@ -359,25 +366,43 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         logger.info("      Model: gemini-flash-latest | Temp: 0.0")
         step_start = time.time()
         
-        chat_session = client.chats.create(
-            # model="gemini-2.5-pro",
-            # model="gemini-2.5-flash",
-            model ="gemini-flash-latest",
-            # model="gemini-flash-lite-latest",
-            # model="gemini-2.5-flash-lite",
+        # chat_session = client.chats.create(
+        #     # model="gemini-2.5-pro",
+        #     # model="gemini-2.5-flash",
+        #     model ="gemini-flash-latest",
+        #     # model="gemini-flash-lite-latest",
+        #     # model="gemini-2.5-flash-lite",
         
 
-            config=types.GenerateContentConfig(
-                # system_instruction = SYSTEM_INSTRUCTION + """
-                # \n\n### CONTEXT OF THE USER'S DATA ###\n""" + ai_context,
-                system_instruction=f"{SYSTEM_INSTRUCTION}\n\n ###Context of the User's Data\n {ai_context}",
+        #     config=types.GenerateContentConfig(
+        #         # system_instruction = SYSTEM_INSTRUCTION + """
+        #         # \n\n### CONTEXT OF THE USER'S DATA ###\n""" + ai_context,
+        #         system_instruction=f"{SYSTEM_INSTRUCTION}\n\n ###Context of the User's Data\n {ai_context}",
 
-                response_mime_type="application/json",
-                response_schema=list[ModelResponse], 
+        #         response_mime_type="application/json",
+        #         response_schema=list[ModelResponse], 
 
-                 temperature=0.0
+        #          temperature=0.0
+        #     )
+        # )
+
+        # *********************************************************************************************
+        def create_chat_session():
+            return client.chats.create(
+                model="gemini-flash-latest",
+                config=types.GenerateContentConfig(
+                    system_instruction=f"{SYSTEM_INSTRUCTION}\n\n ###Context of the User's Data\n {ai_context}",
+                    response_mime_type="application/json",
+                    response_schema=list[ModelResponse], 
+                    temperature=0.0
+                )
             )
-        )
+
+        # FIX 3: Run blocking Network call in a thread
+        chat_session = await run_in_threadpool(create_chat_session)
+        # *********************************************************************************************
+
+
         logger.info(f"      ✓ Chat session created ({time.time() - step_start:.2f}s)")
         
         # Save in memory
