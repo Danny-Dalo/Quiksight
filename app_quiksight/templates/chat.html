@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -20,142 +21,148 @@
       justify-content: flex-end;
       margin-top: 1.5rem;
     }
-    .user-msg > div {
-      background-color: rgb(243, 244, 246); /* light gray */
+
+    .user-msg>div {
+      background-color: rgb(243, 244, 246);
+      /* light gray */
       padding: 0.4rem 1rem;
       border-radius: 1.1rem;
       display: inline-block;
       max-width: 75%;
     }
+
     .ai-msg {
       margin-top: 1.5rem;
       color: rgb(17, 24, 39);
       font-size: 1rem
     }
-
-
-
-
   </style>
-  
+
 </head>
+
 <body class="bg-base-100 flex flex-col items-center justify-center min-h-screen p-4">
-  
 
-
-<div class="card w-full max-w-md bg-white shadow-md">
-  <div class="card-body p-6">
-    <!-- File Info Header -->
-    <div class="flex items-center gap-3 mb-4">
-      <svg class="w-5 h-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-      </svg>
-
-      <h3 class="text-lg font-semibold text-gray-900">{{file_name}}</h3>
-    </div>
-
-    <!-- File Metadata -->
-    <div class="space-y-3 mb-4">
-      <div class="flex justify-between items-center">
-        <span class="text-sm text-gray-500">Extension</span>
-        <span class="badge badge-neutral badge-sm">{{file_extension}}</span>
-      </div>
-      <div class="flex justify-between items-center">
-        <span class="text-sm text-gray-500">File Size</span>
-        <span class="text-sm font-medium text-gray-900">{{file_size}}</span>
-      </div>
-      <div class="flex justify-between items-center">
-        <span class="text-sm text-gray-500">Upload Date</span>
-        <span class="text-sm font-medium text-gray-900">{{upload_date}}</span>
-      </div>
-      <div class="flex justify-between items-center">
-        <span class="text-sm text-gray-500">Upload Time</span>
-        <span class="text-sm font-medium text-gray-900">{{upload_time}}</span>
+  <nav class="w-full bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16 items-center">
+        <!-- Logo Area -->
+        <div class="flex items-center gap-2">
+          <!-- Placeholder for Logo Icon -->
+          <span class="font-bold text-xl text-cyan-900 tracking-tight">Quiksight</span>
+        </div>
       </div>
     </div>
+  </nav>
 
-    <!-- Divider -->
-    <div class="divider my-4"></div>
 
-    <!-- Data Statistics -->
-    <div class="grid grid-cols-2 gap-4 mb-4">
-      <div class="text-center">
-        <div class="text-2xl font-bold text-gray-800">{{num_rows}}</div>
-        <div class="text-xs text-gray-500 uppercase tracking-wide">Rows</div>
+
+
+  <div class=" mt-4 bg-card rounded-2xl w-full border border-border p-6 max-w-md mx-auto shadow-sm">
+
+    <div class="card-body p-6">
+      <!-- File Info Header -->
+      <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-black" fill="none" stroke="#32a3a3" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+          </path>
+        </svg>
+
+        <h3 class="text-lg font-medium text-gray-900">{{file_name}}</h3>
       </div>
-      <div class="text-center">
-        <div class="text-2xl font-bold text-gray-800">{{num_columns}}</div>
-        <div class="text-xs text-gray-500 uppercase tracking-wide">Columns</div>
+
+      <!-- File Metadata -->
+      <div class="space-y-3 mb-4">
+        <div class="flex justify-between items-center">
+          <span class="text-[13px] text-gray-500">Extension</span>
+          <span class="badge bg-cyan-100 text-cyan-900 border-none text-xs font-medium px-2.5 py-1">
+            {{file_extension}}
+          </span>
+
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-[13px] text-gray-500">File Size</span>
+          <span class="text-[13px] font-medium text-gray-700">{{file_size}}</span>
+
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-[13px] text-gray-500">Upload Date</span>
+          <span class="text-[13px] font-medium text-gray-700">{{upload_date}}</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-[13px] text-gray-500">Upload Time</span>
+          <span class="text-[13px] font-medium text-gray-700">{{upload_time}}</span>
+        </div>
       </div>
+
+      <!-- Divider -->
+      <div class="divider before:bg-cyan-700 after:bg-cyan-700 my-4"></div>
+
+      <!-- Data Statistics -->
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div class="text-center">
+          <div class="text-2xl font-medium text-gray-900">{{num_rows}}</div>
+          <div class="text-xs text-gray-500 uppercase tracking-wide">Rows</div>
+        </div>
+        <div class="text-center">
+          <div class="text-2xl font-medium text-gray-900">{{num_columns}}</div>
+          <div class="text-xs text-gray-500 uppercase tracking-wide">Columns</div>
+        </div>
+      </div>
+
     </div>
-
-    <!-- Collapsible Column Names -->
-    <!-- <div class="collapse collapse-arrow bg-gray-50 rounded-lg">
-      <input type="checkbox" class="peer" />
-      <div class="collapse-title text-sm font-medium text-gray-700">
-        Column Names
-      </div>
-      <div class="collapse-content">
-        <ul class="list-disc list-inside space-y-1 text-sm text-gray-600 mt-2">
-          {% for column in columns %}
-            <li>{{column}}</li>
-          {% endfor %}
-        </ul>
-      </div>
-    </div> -->
   </div>
-</div>
-
 
 
   <!-- PREVIEW ROWS -->
-<div class="w-full max-w-7xl mx-auto bg-white rounded-2xl shadow-md p-2 mt-2">
+  <div class="w-full max-w-5xl mx-auto bg-white rounded-2xl shadow-sm p-2 mt-4 border border-gray-200">
 
-        <!-- Header Section -->
-        <div class="flex items-center gap-3 mb-6">
-            <!-- <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="M12 17a5 5 0 0 0 0-10 5 5 0 0 0 0 10Z"/><path d="M12 1v2"/><path d="M12 21v2"/><path d="m4.22 4.22 1.42 1.42"/><path d="m18.36 18.36 1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="m4.22 19.78 1.42-1.42"/><path d="m18.36 5.64 1.42-1.42"/></svg> -->
-            <h1 class="text-xl font-semibold text-gray-800">Data Preview</h1>
-            <span class="text-sm text-gray-500">(showing first {{preview_rows|length}} of {{num_rows}} rows)</span>
-        </div>
 
-        <!-- Table Container with overflow for responsiveness -->
-      <div class="overflow-x-auto">
-      <table class="table table-zebra table-pin-rows">
-        <thead class="bg-gray-50 text-gray-600 font-medium">
+    <!-- Header Section -->
+    <div class="flex items-center gap-2 mb-4">
+      <h1 class="text-lg font-semibold text-gray-800">Data Preview</h1>
+      <span class="text-xs text-gray-500">
+        (showing first {{preview_rows|length}} of {{num_rows}} rows)
+      </span>
+    </div>
+
+    <!-- Table Container -->
+    <div class="overflow-x-auto">
+      <table class="table table-zebra table-pin-rows text-sm">
+        <!-- <table class="table table-zebra table-pin-rows text-[13px]"> -->
+
+        <thead class="bg-gray-50 text-gray-500 font-light text-sm tracking-wider">
+
           <tr>
-              {% for col in columns %}
-                  <th>{{ col }}</th>
-              {% endfor %}
+            {% for col in columns %}
+            <th class="py-2 px-3">{{ col }}</th>
+            {% endfor %}
           </tr>
         </thead>
         <tbody>
-            {% for row in preview_rows %}
-                <tr>
-                    {% for col in columns %}
-                        <td>
-                            {% if row[col] is none or row[col] != row[col] or row[col] == '' %}
-                                <span class="text-gray-400 italic">N/A</span>
-                            {% elif row[col] | string | length > 60 %}
-                                <div class="tooltip tooltip-bottom text-left" data-tip="{{ row[col] }}">
-                                    <span class="truncate max-w-xs block">{{ row[col] }}</span>
-                                </div>
-                            {% else %}
-                                {{ row[col] }}
-                            {% endif %}
-                        </td>
-                    {% endfor %}
-                </tr>
+          {% for row in preview_rows %}
+          <tr>
+            {% for col in columns %}
+            <td class="py-2 px-3">
+              {% if row[col] is none or row[col] != row[col] or row[col] == '' %}
+              <span class="text-gray-400 italic">N/A</span>
+              {% elif row[col] | string | length > 60 %}
+              <div class="tooltip tooltip-bottom text-left" data-tip="{{ row[col] }}">
+                <span class="truncate max-w-xs block">{{ row[col] }}</span>
+              </div>
+              {% else %}
+              {{ row[col] }}
+              {% endif %}
+            </td>
             {% endfor %}
+          </tr>
+          {% endfor %}
         </tbody>
       </table>
-
-        </div>
     </div>
-
-
-
-
+  </div>
   <!-- PREVIEW ROWS -->
+
 
 
 
@@ -178,33 +185,37 @@
 
 
     <!-- Input Bar -->
-     <div class="bg-white rounded-[28px] shadow-md p-2 grid"
-        style="grid-template-columns: auto 1fr auto; grid-template-rows: 1fr auto; border: solid 1px lightgray;">
-    <!-- TEXTAREA INPUT -->
-    <div style="grid-area:1/2/2/3" class="min-h-[44px]">
-      <textarea id="message-input"
-        class="w-full resize-none border-0 outline-none p-2 leading-6 h-auto overflow-hidden max-h-[10.5rem]"
-        rows="1" placeholder="Ask about your data">
-      </textarea>
-    </div>
+    <div class="bg-white rounded-[28px] shadow-md p-2 grid"
+      style="grid-template-columns: auto 1fr auto; grid-template-rows: 1fr auto; border: solid 0.5px lightgray;">
+      <!-- TEXTAREA INPUT -->
+      <div style="grid-area:1/2/2/3" class="min-h-[44px]">
+        <textarea id="message-input"
+          class="w-full resize-none border-0 outline-none p-2 leading-6 h-auto overflow-hidden max-h-[10.5rem]" rows="1"
+          placeholder="Talk to your data"></textarea>
+      </div>
 
-    <!-- SEND BUTTON -->
-    <div style="grid-area:2/1/3/4;" class="w-full flex justify-end mt-0">
-        <button id="send-btn" class="flex items-center justify-center w-10 h-10 rounded-full bg-black">
-          <svg class="w-[31px] h-[31px] text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
-          <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6v13m0-13 4 4m-4-4-4 4"/>
+      <!-- SEND BUTTON -->
+      <div style="grid-area:2/1/3/4;" class="w-full flex justify-end mt-0">
+        <button id="send-btn" disabled class="flex items-center justify-center w-9 h-9 rounded-full
+         bg-gray-300 cursor-not-allowed transition">
+
+          <svg class="w-[31px] h-[31px] text-gray-800 dark:text-white" aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M12 6v13m0-13 4 4m-4-4-4 4" />
           </svg>
         </button>
+      </div>
+
     </div>
 
+
+
+
   </div>
 
-
-
-
-  </div>
-
-<script src="static/js/chat.js?v={{ cache_buster }}"> </script>
+  <script src="static/js/chat.js?v={{ cache_buster }}"> </script>
 
 </body>
+
 </html>

@@ -110,4 +110,5 @@ dependencies = [
     "websockets==14.2",
     "xlrd==2.0.1",
     "yarl==1.19.0",
+    "google>=3.0.0",
 ]
