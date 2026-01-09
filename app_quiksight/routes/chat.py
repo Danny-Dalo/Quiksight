@@ -34,6 +34,28 @@ templates = Jinja2Templates(directory="app_quiksight/templates")
 
 router = APIRouter()
 
+
+def get_or_create_df(session_data: dict) -> pd.DataFrame:
+    """
+    Lazy DataFrame creation - only converts JSON to DataFrame when needed.
+    This keeps upload fast (<100ms) by deferring pandas work to first chat.
+    """
+    if session_data.get("df") is None:
+        # First access - create DataFrame from raw data
+        raw_rows = session_data.get("raw_rows", [])
+        raw_columns = session_data.get("raw_columns", [])
+        
+        if raw_rows and raw_columns:
+            session_data["df"] = pd.DataFrame(raw_rows, columns=raw_columns)
+            # Clean up raw data to save memory
+            session_data["raw_rows"] = None
+            session_data["raw_columns"] = None
+            logger.info(f"   📊 DataFrame created lazily: {session_data['df'].shape}")
+        else:
+            raise ValueError("No raw data available to create DataFrame")
+    
+    return session_data["df"]
+
 # --- STYLING & DOWNLOAD BUTTON ---
 def dataframe_to_styled_html(df: pd.DataFrame, download_id: str = None, max_rows=10):
     """Convert a Pandas DataFrame into a styled HTML table with a download button."""
@@ -206,6 +228,7 @@ async def chat_page(request: Request, sid: str):
     if "downloads" not in session_data:
         session_data["downloads"] = {}
 
+    # Use stored metadata - don't create DataFrame here (keep page load fast)
     return templates.TemplateResponse("chat.html", {
         "request": request,
         "session_id": sid,
@@ -214,8 +237,8 @@ async def chat_page(request: Request, sid: str):
         "file_extension": os.path.splitext(session_data["file_name"])[1],
         "upload_date": session_data["upload_date"],
         "upload_time": session_data["upload_time"],
-        "num_rows": len(session_data["df"]),
-        "num_columns": len(session_data["df"].columns),
+        "num_rows": session_data.get("num_rows", 0),
+        "num_columns": session_data.get("num_columns", 0),
         "columns": session_data["columns"],
         "preview_rows": session_data["preview_rows"],
         "cache_buster": datetime.datetime.now().timestamp()

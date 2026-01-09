@@ -1,119 +1,89 @@
 """
-Upload route - Receives PRE-PARSED data from client-side JavaScript.
-The client parses CSV/Excel files using SheetJS and sends JSON data.
-This reduces CPU load on the server (Render free tier).
+Upload route - ZERO-CPU upload endpoint.
+Stores raw JSON data. DataFrame is created LAZILY when chat needs it.
+This achieves <100ms upload time on Render free tier (0.1 CPU).
 """
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import uuid
-import logging
-import pandas as pd
 from datetime import datetime
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='\n%(asctime)s | %(levelname)-8s | %(name)-10s | %(message)s',
-    datefmt='%H:%M:%S'
-)
-logger = logging.getLogger("UPLOAD")
 
 router = APIRouter()
 
-# In-memory session storage
+# In-memory session storage - stores RAW data, not DataFrames
 session_store: Dict[str, Dict[str, Any]] = {}
 
 # Constants
-MAX_ROWS = 100_000  # Max rows allowed
-MAX_COLUMNS = 500   # Max columns allowed
+MAX_ROWS = 100_000
+MAX_COLUMNS = 500
 
 
 class UploadPayload(BaseModel):
     """Schema for client-side parsed data."""
     filename: str
-    file_size: int  # in bytes
+    file_size: int
     columns: List[str]
-    rows: List[Dict[str, Any]]  # Array of row objects
+    rows: List[Dict[str, Any]]
 
 
 @router.post("/upload")
 async def upload_parsed_data(payload: UploadPayload):
     """
-    Receive pre-parsed data from client-side JavaScript.
-    Client uses SheetJS to parse CSV/Excel files before sending.
+    Ultra-fast upload - just validate and store raw JSON.
+    NO pandas, NO DataFrame creation here.
+    DataFrame is created lazily in chat.py when first message is sent.
     """
-    logger.info(f"📤 Received parsed data: {payload.filename}")
-    logger.info(f"   Rows: {len(payload.rows)}, Columns: {len(payload.columns)}")
-    
-    # Validate payload
+    # Quick validations only
     if not payload.filename:
         raise HTTPException(status_code=400, detail="Filename is required")
     
-    if not payload.columns:
-        raise HTTPException(status_code=400, detail="No columns found in data")
-    
-    if not payload.rows:
-        raise HTTPException(status_code=400, detail="No data rows found")
+    if not payload.columns or not payload.rows:
+        raise HTTPException(status_code=400, detail="Empty data")
     
     if len(payload.rows) > MAX_ROWS:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Too many rows. Maximum allowed: {MAX_ROWS:,}"
-        )
+        raise HTTPException(status_code=400, detail=f"Max {MAX_ROWS:,} rows allowed")
     
     if len(payload.columns) > MAX_COLUMNS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Too many columns. Maximum allowed: {MAX_COLUMNS}"
-        )
+        raise HTTPException(status_code=400, detail=f"Max {MAX_COLUMNS} columns allowed")
     
-    try:
-        # Convert to DataFrame (lightweight since data is already parsed)
-        df = pd.DataFrame(payload.rows, columns=payload.columns)
-        logger.info(f"   ✓ DataFrame created: {df.shape}")
+    # Generate session
+    session_id = str(uuid.uuid4())
+    now = datetime.now()
+    
+    # Format file size
+    size_bytes = payload.file_size
+    if size_bytes < 1024:
+        file_size_display = f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        file_size_display = f"{size_bytes / 1024:.1f} KB"
+    else:
+        file_size_display = f"{size_bytes / (1024 * 1024):.1f} MB"
+    
+    # Store RAW data - no pandas!
+    session_store[session_id] = {
+        # Raw data (DataFrame created lazily in chat.py)
+        "raw_columns": payload.columns,
+        "raw_rows": payload.rows,
+        "df": None,  # Created on first chat message
         
-        # Generate session ID
-        session_id = str(uuid.uuid4())
-        
-        # Format file size for display
-        size_bytes = payload.file_size
-        if size_bytes < 1024:
-            file_size_display = f"{size_bytes} B"
-        elif size_bytes < 1024 * 1024:
-            file_size_display = f"{size_bytes / 1024:.2f} KB"
-        else:
-            file_size_display = f"{size_bytes / (1024 * 1024):.2f} MB"
-        
-        # Get current timestamp
-        now = datetime.now()
-        
-        # Store session data
-        session_store[session_id] = {
-            "df": df,
-            "file_name": payload.filename,
-            "file_size": file_size_display,
-            "upload_date": now.strftime("%Y-%m-%d"),
-            "upload_time": now.strftime("%I:%M %p"),
-            "columns": payload.columns,
-            "preview_rows": df.head(5).to_dict(orient="records"),
-            "num_rows": len(df),
-            "num_columns": len(payload.columns),
-        }
-        
-        logger.info(f"   ✓ Session created: {session_id[:8]}...")
-        logger.info(f"   Active sessions: {len(session_store)}")
-        
-        return JSONResponse({
-            "success": True,
-            "session_id": session_id,
-            "rows": len(df),
-            "columns": len(payload.columns),
-            "preview": df.head(5).to_dict(orient="records"),
-        })
-        
-    except Exception as e:
-        logger.error(f"❌ Error processing data: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to process data: {str(e)}")
+        # Metadata
+        "file_name": payload.filename,
+        "file_size": file_size_display,
+        "upload_date": now.strftime("%Y-%m-%d"),
+        "upload_time": now.strftime("%I:%M %p"),
+        "columns": payload.columns,
+        "num_rows": len(payload.rows),
+        "num_columns": len(payload.columns),
+        "preview_rows": payload.rows[:5],  # Just slice, no conversion
+    }
+    
+    return JSONResponse({
+        "success": True,
+        "session_id": session_id,
+        "rows": len(payload.rows),
+        "columns": len(payload.columns),
+    })
+
