@@ -111,4 +111,6 @@ dependencies = [
     "xlrd==2.0.1",
     "yarl==1.19.0",
     "google>=3.0.0",
+    "python-calamine>=0.6.1",
+    "psutil>=7.2.1",
 ]

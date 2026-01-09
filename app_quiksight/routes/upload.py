@@ -461,15 +461,37 @@ def read_file_simple(file: UploadFile) -> pd.DataFrame:
     if name.endswith(".csv"):
         return pd.read_csv(file.file)
 
-    if name.endswith((".xlsx", ".xls")):
-        content = file.file.read()
-        return pd.read_excel(io.BytesIO(content))
+    # if name.endswith((".xlsx", ".xls")):
+    #     content = file.file.read()
+    #     return pd.read_excel(io.BytesIO(content), engine="calamine" )
 
     raise ValueError("Unsupported file type")
 
 
+# import psutil, os
+
+# def get_resource_usage():
+#     process = psutil.Process(os.getpid())
+#     cpu = psutil.cpu_percent(interval=0.1)       # CPU % across all cores
+#     mem = process.memory_info().rss / 1024**2    # RAM in MB
+#     return cpu, mem
+
+# import threading
+# import time
+
+# def monitor():
+#     while True:
+#         cpu, mem = get_resource_usage()
+#         print(f"[MONITOR] CPU: {cpu}%, RAM: {mem:.1f}MB")
+#         time.sleep(2)
+
+# threading.Thread(target=monitor, daemon=True).start()
+# -=====================================================================
+
+
 @router.post("/upload")
 async def upload(file: UploadFile = File(...)):
+    # cpu_before, mem_before = get_resource_usage()
     if not file or not file.filename:
         raise HTTPException(status_code=400, detail="No file uploaded")
 
@@ -489,6 +511,9 @@ async def upload(file: UploadFile = File(...)):
         df = read_file_simple(file)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to read file: {e}")
+
+    # cpu_after, mem_after = get_resource_usage()
+    # print(f"CPU BEFORE: {cpu_before} → CPU AFTER {cpu_after}%, RAM BEFORE: {mem_before:.1f} → RAM AFTER: {mem_after:.1f} MB")
 
     return JSONResponse(
         {
