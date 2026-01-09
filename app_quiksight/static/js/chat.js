@@ -1,3 +1,4 @@
+
 const urlParams = new URLSearchParams(window.location.search)
 const sessionID = urlParams.get("sid");
 
@@ -130,57 +131,4 @@ sendBtn.addEventListener("click", sendMessage);   //when the send button is clic
 messageInput.addEventListener("keypress", e => {  // 'Enter' key sends the message as well 
   if (e.key === "Enter") sendMessage();
 });
-
-// ================= LAZY LOADING LOGIC =================
-const statusEl = document.getElementById("session-status");
-if (statusEl && statusEl.value === "pending") {
-  console.log("⏳ Session pending. Polling status...");
-  
-  if(messageInput) messageInput.disabled = true;
-
-  fetch(`/chat/status?sid=${sessionID}`)
-    .then(res => {
-        if (!res.ok) throw new Error("Server error");
-        return res.json();
-    })
-    .then(data => {
-      if (data.status === "ready") {
-        console.log("✅ Session ready. Reloading page...");
-        window.location.reload();
-      } else {
-        setTimeout(() => window.location.reload(), 2000);
-      }
-    })
-    .catch(err => {
-      console.error("Poll error:", err);
-      const overlay = document.getElementById("loading-overlay");
-      if (overlay) {
-          overlay.innerHTML = `
-            <div class="text-red-500 text-6xl mb-4">⚠️</div>
-            <div class="text-red-600 text-xl font-bold">Connection Failed</div>
-            <p class="text-gray-600 mb-4">We couldn't prepare your data. Please try again.</p>
-            <a href="/" class="btn btn-primary">Return Home</a>
-          `;
-      }
-    });
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
