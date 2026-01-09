@@ -454,7 +454,7 @@ router = APIRouter()
 ALLOWED_EXTENSIONS = {".csv", ".xlsx", ".xls"}
 MAX_SIZE_BYTES = 30 * 1024 * 1024  # 30 MB
 
-
+session_store = {}
 def read_file_simple(file: UploadFile) -> pd.DataFrame:
     name = file.filename.lower()
 
