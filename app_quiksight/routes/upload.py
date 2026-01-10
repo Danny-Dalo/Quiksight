@@ -1,21 +1,37 @@
 
+
 from fastapi import APIRouter, File, UploadFile, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-
+from fastapi.concurrency import run_in_threadpool
 import os
 import pandas as pd
 import io, csv
 import numpy as np
-
+import logging
 
 from typing import Union, Dict
 
 from api_training2.config import GEMINI_API_KEY
 import uuid
+import time
 
 from google import genai
 from google.genai import types
+
+# Configure logging with cleaner format
+logging.basicConfig(
+    level=logging.INFO,
+    format='\n%(asctime)s | %(levelname)-8s | %(name)-10s | %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger("UPLOAD")
+
+
+def log_section(title: str, char: str = "━"):
+    """Log a visual section divider for better readability."""
+    line = char * 50
+    logger.info(f"\n{line}\n  {title}\n{line}")
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app_quiksight/templates")
@@ -28,255 +44,177 @@ session_store = {}
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 
-
+# ========== Need to review these functions ============
 def make_ai_context(df: Union[pd.DataFrame, Dict[str, pd.DataFrame]], filename: str, sample_size: int = 5) -> str:
+    logger.info(f"Building AI context for file: {filename}")
     if isinstance(df, pd.DataFrame):
+        logger.info(f"Processing single DataFrame with {len(df)} rows and {len(df.columns)} columns")
         return _build_context_for_df(df, filename, sample_size)
     else:
         # Multi-sheet: Build context for each
+        logger.info(f"Processing multi-sheet file with {len(df)} sheets: {list(df.keys())}")
         contexts = []
-        for sheet_name, df in df.items():
-            contexts.append(f"📑 Sheet: {sheet_name}\n" + _build_context_for_df(df, filename, sample_size))
+        for sheet_name, sheet_df in df.items():
+            logger.info(f"Building context for sheet: {sheet_name}")
+            contexts.append(f"📑 Sheet: {sheet_name}\n" + _build_context_for_df(sheet_df, filename, sample_size))
         return "\n\n---\n\n".join(contexts)
 
 
 def _build_context_for_df(df: pd.DataFrame, filename: str, sample_size: int) -> str:
+    """Build a token-efficient context summary for the AI."""
+    logger.debug(f"Starting context build for {filename}")
     context_parts = []
+    num_cols = len(df.columns)
+    num_rows = len(df)
+    logger.info(f"DataFrame stats - Rows: {num_rows:,}, Columns: {num_cols}")
+    logger.debug(f"Column names: {list(df.columns)}")
+    logger.debug(f"Data types: {df.dtypes.to_dict()}")
+    
+    # Config for token efficiency
+    MAX_COLS_DETAILED = 25  # Full stats for first N columns
+    MAX_SAMPLE_COLS = 12    # Columns to include in sample data
+    MAX_RAND_SAMPLES = 3    # Random sample rows
+    
+    # 1. File-level metadata (compact)
+    context_parts.append(f"{filename} | {num_rows:,} rows X {num_cols} columns")
 
-    # Existing: File-level metadata
-    context_parts.append(f"📂 Dataset name: {filename}")
-    context_parts.append(f"📐 Shape: {df.shape[0]} rows x {df.shape[1]} columns")
-
-    # Existing: Column summaries (unchanged, for brevity)
-
-    # ===== 2. Column summaries =====
+    # 2. Column summaries (limited)
     summaries = []
-    for col in df.columns:
+    cols_to_detail = list(df.columns[:MAX_COLS_DETAILED])
+    remaining_cols = num_cols - len(cols_to_detail)
+    
+    for col in cols_to_detail:
         dtype = str(df[col].dtype)
         missing_pct = df[col].isna().mean() * 100
         unique_vals = df[col].nunique(dropna=True)
 
         if pd.api.types.is_numeric_dtype(df[col]):
             desc = df[col].describe(percentiles=[.25, .5, .75])
-            outliers = ((df[col] < (desc['25%'] - 1.5 * (desc['75%'] - desc['25%']))) |
-                        (df[col] > (desc['75%'] + 1.5 * (desc['75%'] - desc['25%'])))).sum()
+            # Compact numeric summary
             col_summary = (
-                f"{col} (numeric) — {dtype}, {unique_vals} unique, "
-                f"missing: {missing_pct:.1f}%, "
-                f"min: {desc['min']}, Q1: {desc['25%']}, median: {desc['50%']}, "
-                f"Q3: {desc['75%']}, max: {desc['max']}, "
-                f"mean: {desc['mean']:.2f}, std: {desc['std']:.2f}, "
-                f"outliers: {outliers}"
+                f"{col} (num) — {unique_vals} unique, "
+                f"range: {desc['min']:.4g}–{desc['max']:.4g}, "
+                f"mean: {desc['mean']:.4g}, missing: {missing_pct:.0f}%"
             )
-
         elif pd.api.types.is_datetime64_any_dtype(df[col]):
             col_summary = (
-                f"{col} (datetime) — {dtype}, {unique_vals} unique, "
-                f"missing: {missing_pct:.1f}%, "
-                f"range: {df[col].min()} → {df[col].max()}"
+                f"{col} (date) — {unique_vals} unique, "
+                f"range: {df[col].min()} → {df[col].max()}, missing: {missing_pct:.0f}%"
             )
-
         else:  # categorical or text
-            top_vals = df[col].value_counts(dropna=True).head(3).to_dict()
+            top_vals = list(df[col].value_counts(dropna=True).head(3).index)
+            top_str = ", ".join(str(v)[:20] for v in top_vals)  # Truncate long values
             col_summary = (
-                f"{col} (categorical/text) — {dtype}, {unique_vals} unique, "
-                f"missing: {missing_pct:.1f}%, "
-                f"top values: {top_vals}"
+                f"{col} (cat) — {unique_vals} unique, "
+                f"top: [{top_str}], missing: {missing_pct:.0f}%"
             )
-
         summaries.append(col_summary)
+    
+    if remaining_cols > 0:
+        summaries.append(f"... and {remaining_cols} more columns")
+    
+    context_parts.append("📝 Columns:\n" + "\n".join(summaries))
 
-    context_parts.append("📝 Column summaries:\n" + "\n".join(summaries))
+    # 3. Data quality summary (one line)
+    total_missing = df.isna().sum().sum()
+    dup_count = df.duplicated().sum()
+    context_parts.append(f" Quality: {total_missing:,} missing values ({df.isna().mean().mean()*100:.1f}%), {dup_count:,} duplicates")
 
-    # ===== 3. Global dataset stats =====
-    context_parts.append(
-        f"📊 Missing values: {df.isna().sum().sum()} total "
-        f"({df.isna().mean().mean()*100:.1f}% overall)"
-    )
-    context_parts.append(
-        f"🔍 Duplicate rows: {df.duplicated().sum()} "
-        f"({df.duplicated().mean()*100:.1f}% of dataset)"
-    )
-
-    # New: Structural Insights
-    context_parts.append("🧩 Structural Insights:")
-
-    # Detect fully empty rows and columns
+    # 4. Structural insights (only if issues detected)
     empty_rows = df.isnull().all(axis=1).sum()
     empty_cols = df.isnull().all(axis=0).sum()
-    context_parts.append(f"  - Fully empty rows: {empty_rows} ({empty_rows / df.shape[0] * 100:.1f}%)")
-    context_parts.append(f"  - Fully empty columns: {empty_cols} ({empty_cols / df.shape[1] * 100:.1f}%)")
-
-    # Detect data blocks (contiguous non-empty rows)
+    
+    if empty_rows > 0 or empty_cols > 0:
+        logger.warning(f"Data quality issue detected - Empty rows: {empty_rows}, Empty columns: {empty_cols}")
+        context_parts.append(f" Structure: {empty_rows} empty rows, {empty_cols} empty columns")
+    
+    # Check for multiple data blocks (only report if fragmented)
     non_empty_mask = ~df.isnull().all(axis=1)
     block_starts = np.where(non_empty_mask & ~non_empty_mask.shift(fill_value=False))[0]
-    block_ends = np.where(non_empty_mask & ~non_empty_mask.shift(-1, fill_value=False))[0]
-    blocks = []
-    for start, end in zip(block_starts, block_ends):
-        block_size = end - start + 1
-        if block_size > 1:  # Ignore single-row "blocks" (likely notes)
-            blocks.append(f"Data block from row {start+1} to {end+1} ({block_size} rows)")
-    if blocks:
-        context_parts.append("  - Potential multiple tables/sections:\n    " + "\n    ".join(blocks))
-    else:
-        context_parts.append("  - Appears as a single contiguous table.")
+    if len(block_starts) > 1:
+        logger.warning(f"Data fragmentation detected - {len(block_starts)} separate data blocks found")
+        context_parts.append(f" Data appears fragmented into {len(block_starts)} sections")
 
-    # Column fill patterns (e.g., columns with data only in certain ranges)
-    col_patterns = []
-    for col in df.columns:
-        non_null_idx = df[col].notnull()
-        if non_null_idx.sum() > 0:
-            first_data = non_null_idx.idxmax() + 1
-            last_data = non_null_idx[::-1].idxmax() + 1
-            gaps = (non_null_idx.diff() > 1).sum()  # Rough gap count
-            col_patterns.append(f"{col}: Data from row {first_data} to {last_data}, {gaps} gaps")
-    if col_patterns:
-        context_parts.append("  - Column data ranges:\n    " + "\n    ".join(col_patterns))
+    # 5. Sample data (truncated for wide datasets)
+    sample_cols = list(df.columns[:MAX_SAMPLE_COLS])
+    df_sample = df[sample_cols]
+    
+    head_sample = df_sample.head(2).to_dict(orient="records")
+    context_parts.append(f" First rows: {head_sample}")
+    
+    # Only add random sample if dataset is larger than head sample
+    if num_rows > 5:
+        rand_sample = df_sample.sample(min(MAX_RAND_SAMPLES, num_rows), random_state=42).to_dict(orient="records")
+        context_parts.append(f" Random sample: {rand_sample}")
+    
+    if num_cols > MAX_SAMPLE_COLS:
+        context_parts.append(f"(Sample shows first {MAX_SAMPLE_COLS} of {num_cols} columns)")
 
-    # Existing: Samples, but improved
-    # Head + tail + samples from blocks
-    head_sample = df.head(3).to_dict(orient="records")
-    tail_sample = df.tail(3).to_dict(orient="records")
-    rand_samples = []
-    for start, end in zip(block_starts, block_ends):
-        block_df = df.iloc[start:end+1]
-        rand_samples.extend(block_df.sample(min(sample_size // len(blocks) + 1, len(block_df)), random_state=42).to_dict(orient="records"))
-    context_parts.append(f"👀 First rows: {head_sample}")
-    context_parts.append(f"👀 Last rows: {tail_sample}")
-    context_parts.append(f"🎲 Samples from sections: {rand_samples}")
-
-    # Existing: Semantic cues (unchanged)
-
+    logger.info(f"AI context built successfully for {filename} ({len('\n\n'.join(context_parts))} chars)")
     return "\n\n".join(context_parts)
+# =======================================
 
-# old prompt 1
 SYSTEM_INSTRUCTION = """
-# You are a data analysis assistant for Quiksight, helping non-technical users understand their data through natural conversation.
+You are Quiksight's data assistant—a friendly, sharp analyst who helps users understand their data conversationally.
 
-# # YOUR ROLE
-# - You analyze the uploaded dataset and answer questions about it in plain, conversational language
-# - You speak like a helpful colleague, not a technical expert or chatbot
-# - You make data insights accessible to people who aren't data analysts or programmers
+PERSONALITY
+- Speak like a helpful colleague, not a robot or corporate chatbot
+- Use contractions naturally (you've, there's, I'll)
+- Be direct—skip preambles like "Sure!" or "Great question!"
+- Match the user's tone and detail level
+- Stay focused on the dataset; gently redirect off-topic questions
 
-# # CONVERSATION GUIDELINES
-# 1. **Stay focused on the data**: Only discuss the uploaded dataset. If users ask off-topic questions, politely redirect it back to the data
+RESPONSE FORMAT
+Use clean, minimal HTML:
+- <p> for paragraphs
+- <strong> for emphasis (sparingly)
+- Lists when appropriate:
+  <ul class="list-disc list-inside space-y-1 mt-2 mb-2"><li>Item</li></ul>
+  <ol class="list-decimal list-inside space-y-1 mt-2 mb-2"><li>Step</li></ol>
 
-# 2. **Be concise and natural**: 
-#    - No fluff, filler, or unnecessarily verbose explanations.
-#    - Answer directly without preambles like "Sure, I'd be happy to help!".
-#    - Don't over-explain - match the user's level of detail.
-#    - NEVER explain or describe what you're about to do or how you'll do, just present the result.
+CRITICAL RULE: TEXT + CODE MUST BLEND SEAMLESSLY
+Your text_explanation and code output appear as ONE message to the user.
 
-# 3. **Sound human**:
-#    - Use contractions (I'll, you've, there's).
-#    - Vary sentence structure.
-#    - Avoid robotic phrases like "Based on the data provided" or "Let me analyze that for you".
+Since you write text_explanation BEFORE code runs, you CANNOT know computed values.
 
-# 4. **Format responses in clean HTML**:
-#    - Use `<p>` for paragraphs.
-#    - Use `<strong>` for emphasis (sparingly).
-#    - Use `<ul>` and `<li>` for lists when appropriate.
-#    - Use `<br>` for line breaks only when necessary.
-#    - Keep HTML minimal and semantic.
+DO: Leave text_explanation empty when code computes the answer. Let code print the full response.
+DON'T: Write numbers/values in text_explanation—you'll hallucinate wrong data.
 
-# # CODE GENERATION RULES
-# When you need to generate Python code to answer a question:
+PATTERN A — Computed Values (numbers, counts, aggregations):
+text_explanation: ""
+code_generated: |
+  total = df['Sales'].sum()
+  print(f"<p>Total sales: <strong>${total:,.2f}</strong></p>")
 
-# 1. DO NOT use import statements. You can assume the following objects are available: df (Pandas DataFrame), pd, np, display_table(). All code should run using these objects only.
-# 2. **Never use file I/O operations**: No reading/writing files, no imports beyond pd and np
-# 3. **Print results explicitly**: Use `print()` to output what the user needs to see
-# 4. **For tables/DataFrames**: YOU MUST use the function `display_table(df)` instead of print. Correct: `display_table(summary_df)`
-# 5. **Handle errors gracefully**: Add try-except blocks for operations that might fail
-# 6. **Modify df when needed**: If the user wants to clean/transform data, modify `df` directly
-# 7. **NO NESTED COLUMNS:** After any `groupby` or aggregation, you MUST flatten the column headers. Never output a DataFrame with a `MultiIndex`.
-#    - **Correct Way:** `result = df.groupby('Category').size().reset_index(name='Count')`
-#    - **Incorrect Way:** `result = df.groupby('Category').agg({'Category': ['count']})`
+PATTERN B — Tables or Lists from Data:
+text_explanation: "<p>Here's a breakdown by region:</p>"
+code_generated: |
+  result = df.groupby('Region')['Sales'].sum().reset_index()
+  result.columns = ['Region', 'Total Sales']
+  display_table(result)
 
+PATTERN C — General Questions (no computation needed):
+text_explanation: "<p>The dataset contains customer orders with columns for date, product, quantity, and price.</p>"
+code_generated: ""
+should_execute: false
 
-# # WHEN TO EXECUTE CODE
-# Set `should_execute: true` when you need to:
-# - Perform calculations, aggregations, or statistical analysis
-# - Filter, sort, or transform the data
-# - Generate summaries, counts, or breakdowns
-# - Create crosstabs or pivot tables
-# - Show specific rows or subsets of data
+CODE RULES
+- Available: df (DataFrame), pd, np, display_table()
+- NO imports, NO file I/O
+- For DataFrames: use display_table(df), NOT print()
+- Always flatten MultiIndex after groupby:
+  CORRECT: df.groupby('X').size().reset_index(name='Count')
+  WRONG: df.groupby('X').agg({'Y': ['count']})
+- Format numbers nicely: {:,} for thousands, :.2f for decimals
+- Wrap risky operations in try-except
 
-# Set `should_execute: false` when:
-# - Answering general questions about data structure (you have context)
-# - Explaining what a column means
-# - Providing interpretation without computation
-# - The question doesn't require data manipulation
+WHEN TO EXECUTE CODE
+should_execute: true → calculations, aggregations, filtering, transformations, showing data subsets
+should_execute: false → explaining structure, describing columns, interpretation without computation
 
-
-
-# HOW TO COMBINE TEXT AND CODE (THE MOST IMPORTANT RULE)
-# Your text_explanation and the print() output from your code_generated are shown to the user together as one single message.
-
-# Because you cannot know the result of your code when you write the text_explanation, you must follow this rule:
-
-# NEVER write the data value (like a number, sum, or count) into the text_explanation. You will guess wrong and provide inaccurate data.
-
-# Instead, the code_generated block MUST print the entire natural language response, including the data and the HTML formatting.
-
-
-
-# RESPONSE PATTERNS
-# Here are the correct patterns to follow.
-
-# Pattern 1: Answering with a Single Number (This fixes your exact problem)
-# INCORRECT (What caused your error):
-
-# text_explanation: <p>The total number of rooms is <strong>2,400</strong>.</p> (This "2,400" is a hallucination and is wrong.)
-
-# code_generated: total_rooms = df[...].sum()\nprint(f"Total rooms: {total_rooms}") (This is redundant and confusing.)
-
-# CORRECT:
-
-# text_explanation: "" (Leave this empty. The code will provide the entire response.)
-
-# code_generated:
-
-# Python
-
-# total_rooms = df[df['Suburb'] == 'Abbotsford']['Rooms'].sum()
-# print(f"<p>The total number of rooms in Abbotsford is <strong>{int(total_rooms):,}</strong>.</p>")
-# Pattern 2: Generating a Table or List
-# In this case, it's safe for the text_explanation to have an introduction because it doesn't contain any unknown data.
-
-# CORRECT:
-
-# text_explanation: <p>Here is the breakdown by property type:</p>
-
-# code_generated:
-
-# Python
-
-# summary = df.groupby('Type')['Price'].mean().reset_index()
-# print(summary.to_html(index=False))
-# Pattern 3: General Question (No Code Needed)
-# This is for when you're just answering a question about the data, not calculating.
-
-# CORRECT:
-
-# text_explanation: <p>The dataset includes information on property sales, including address, price, and number of rooms.</p>
-
-# code_generated: ""
-
-# should_execute: false
-
-
-
-
-# # CRITICAL REMINDERS
-# - Your text and code output should feel like ONE seamless response
-# - Never acknowledge that you're executing code - just present the answer
-# - Keep language natural and conversational, not corporate or robotic
-# - Be accurate: if you don't see something in the data context, say you can't find it
-# - If data has quality issues (missing values, duplicates), mention them when relevant
-# - Format numbers appropriately (currency, percentages, thousands separators)
-
-# Remember: You're not a coding assistant - you're a data assistant who happens to use code behind the scenes. The user should feel like they're having a conversation, not running Python scripts.
-# """
+SEAMLESS OUTPUT
+Your response should feel like natural conversation. Never mention "executing code" or "running analysis"—just present the answer as if you knew it all along.
+"""
 
 
 
@@ -292,45 +230,63 @@ def read_file(file: UploadFile) -> DataFrameOrDict:
     Reads an uploaded file (CSV or Excel) and returns a DataFrame
     or a dict of DataFrames if file has multiple sheets(feature not yet added).
     """
-
+    logger.info(f"Starting file read operation for: {file.filename}")
     filename = file.filename.lower()
 
     # ---- CSV Handling ----
     if filename.endswith(".csv"):
+        logger.info("Detected CSV file format")
         for encoding in ["utf-8", "latin1", "iso-8859-1", "cp1252"]:
             try:
+                logger.debug(f"Attempting to read CSV with encoding: {encoding}")
                 file.file.seek(0)
                 # when file is read, pointer reads it and goes to the end (like when you read a book)
                 # If a previous read failed, the cursor is already at the end so it would be seen as empty if you try again
                 # .seek() resets it back to the beginning (going back to the beginning of the book) to read again
-                return pd.read_csv(file.file,
+                df = pd.read_csv(file.file,
                                    encoding=encoding,
                                    engine="python",
                                    quotechar='"',
                                    quoting=csv.QUOTE_MINIMAL,
                                    skip_blank_lines=True,
                                    )
+                logger.info(f"CSV file read successfully with encoding: {encoding}")
+                logger.info(f"Loaded DataFrame: {len(df)} rows, {len(df.columns)} columns")
+                return df
             except UnicodeDecodeError:
+                logger.debug(f"Encoding {encoding} failed, trying next...")
                 continue
+        logger.error("Failed to decode CSV with any supported encoding")
         raise ValueError("Unable to decode CSV with supported encodings.")
 
     # ---- Excel Handling ----
+    logger.info("Detected Excel file format")
     file.file.seek(0)  # takes pointer to beginning of the file
     raw = file.file.read()
+    logger.debug(f"Read {len(raw)} bytes from Excel file")
 
     try:
         xls = pd.ExcelFile(io.BytesIO(raw))
+        logger.info(f"Excel file opened successfully")
     except Exception as e:
+        logger.error(f"Failed to open Excel file: {e}")
         raise ValueError(f"Failed to read Excel file: {e}")
 
     sheets = xls.sheet_names
+    logger.info(f"Found {len(sheets)} sheet(s): {sheets}")
+    
     if not sheets:
+        logger.error("No sheets found in Excel file")
         raise ValueError("No sheets found in Excel file.")
 
     if len(sheets) != 1:
+        logger.warning(f"Multiple sheets detected ({len(sheets)}), but only single sheet is supported")
         raise ValueError("Only Excel files with a single sheet are supported at this time.")
 
-    return pd.read_excel(xls, sheet_name=sheets[0])
+    df = pd.read_excel(xls, sheet_name=sheets[0])
+    logger.info(f"Excel file read successfully from sheet: {sheets[0]}")
+    logger.info(f"Loaded DataFrame: {len(df)} rows, {len(df.columns)} columns")
+    return df
 
 
 
@@ -346,43 +302,73 @@ class ModelResponse(BaseModel):
 # Uploaded files are validated and submitted to the chat endpoint for the AI model to use
 @router.post("/upload", response_class=HTMLResponse)
 async def upload_file(request: Request, file: UploadFile = File(...)):
+    log_section("📤 NEW FILE UPLOAD REQUEST")
 
     # Check if there was a file uploaded
     if not file or file.filename == "":
+        logger.warning("❌ Upload rejected: No file provided")
         return templates.TemplateResponse("home.html", {"request": request, "error": "Please upload a file"})
+    
+    logger.info(f"📁 File received: {file.filename}")
     
     # Check file size (Maximum 30MB)
     file.file.seek(0, os.SEEK_END)
     file_size_bytes = file.file.tell()
     file.file.seek(0)
     max_size_bytes = 30 * 1024 * 1024  # 30MB
+    logger.info(f"   Size: {file_size_bytes / 1024:.2f} KB ({file_size_bytes / (1024*1024):.2f} MB)")
+    
     if file_size_bytes > max_size_bytes:
+        logger.warning(f"❌ Rejected: File size exceeds 30MB limit")
         return templates.TemplateResponse("home.html", {
             "request": request,
             "error": "File too large. Maximum allowed size is 30MB."
         })
+    logger.info("   ✓ Size validation passed")
 
     # Validate extension of file to make sure it's only an excel or a CSV file being uploaded
     _, ext = os.path.splitext(file.filename.lower())
+    logger.info(f"   Extension: {ext}")
+    
     if ext not in ALLOWED_EXTENSIONS:
+        logger.warning(f"❌ Rejected: Invalid extension '{ext}'")
         return templates.TemplateResponse("home.html", {
             "request": request,
             "error": f"Invalid file type. Only {', '.join(ALLOWED_EXTENSIONS)} allowed"
         })
-    
+    logger.info("   ✓ Extension validation passed")
 
     try:
+        log_section("⚙️  PROCESSING PIPELINE", "─")
+        pipeline_start = time.time()
+        
         # Read file
+        logger.info("\n[1/4] 📖 Reading file contents...")
+        step_start = time.time()
+
         df = read_file(file)
+        
+
+        logger.info(f"      ✓ DataFrame loaded ({time.time() - step_start:.2f}s)")
 
         # 4. Build file context for the model to have an overview of the file
+        logger.info("\n[2/4] 🧠 Building AI context...")
+        step_start = time.time()
+
         ai_context = make_ai_context(df, file.filename)
+
+        logger.info(f"      ✓ AI context generated ({time.time() - step_start:.2f}s)")
+        logger.info(f"      Context size: {len(ai_context):,} chars")
         
-        # Creates a chat  session when previous steps have been done
+        # Creates a chat session when previous steps have been done
+        logger.info("\n[3/4] 🤖 Creating Gemini chat session...")
+        logger.info("      Model: gemini-flash-latest | Temp: 0.0")
+        step_start = time.time()
+        
         chat_session = client.chats.create(
-            model="gemini-2.5-pro",
+            # model="gemini-2.5-pro",
             # model="gemini-2.5-flash",
-            # model ="gemini-flash-latest",
+            model ="gemini-flash-latest",
             # model="gemini-flash-lite-latest",
             # model="gemini-2.5-flash-lite",
         
@@ -399,11 +385,16 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
             )
         )
 
-        
-       
+
+
+        logger.info(f"      ✓ Chat session created ({time.time() - step_start:.2f}s)")
         
         # Save in memory
+        logger.info("\n[4/4] 💾 Storing session data...")
+        step_start = time.time()
         session_id = str(uuid.uuid4())
+        logger.info(f"      Session ID: {session_id[:8]}...")
+        
         # Convert file size to KB (rounded to 2 decimals)
         size_kb = file.size / 1024
         if size_kb < 1024:
@@ -426,13 +417,31 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
 
             "preview_rows": df.head(5).to_dict(orient="records")
         }
+        
+        logger.info(f"      ✓ Session stored ({time.time() - step_start:.2f}s)")
+        
+        total_time = time.time() - pipeline_start
+        log_section("✅ UPLOAD COMPLETE", "─")
+        logger.info(f"""   File: {file.filename}
+   Rows: {len(df):,}  |  Columns: {len(df.columns)}
+   Active sessions: {len(session_store)}
+   ⏱️  Total time: {total_time:.2f}s""")
 
         
 
         # Redirect to chat page with session ID
+        logger.info(f"\n   → Redirecting to /chat?sid={session_id[:8]}...")
         return RedirectResponse(url=f"/chat?sid={session_id}", status_code=303)
 
     except Exception as e:
+        log_section("❌ UPLOAD FAILED", "═")
+        logger.error(f"   Type: {type(e).__name__}")
+        logger.error(f"   Message: {str(e)}")
         return templates.TemplateResponse("home.html", {"request": request, "error": str(e)})
+
+
+
+
+
 
 
