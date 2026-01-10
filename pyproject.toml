@@ -114,3 +114,7 @@ dependencies = [
     "python-calamine>=0.6.1",
     "psutil>=7.2.1",
 ]
+
+[tool.setuptools.packages.find]
+include = ["app_quiksight*"]
+
