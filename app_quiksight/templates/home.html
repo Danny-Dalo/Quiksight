@@ -80,8 +80,7 @@
             <!-- <p class="text-sm text-slate-500">Securely upload your file to begin.</p> -->
           </div>
 
-          <!-- <form action="/upload" method="post" enctype="multipart/form-data" class="space-y-4"> -->
-          <form enctype="multipart/form-data" class="space-y-4">
+          <form action="/upload" method="post" enctype="multipart/form-data" class="space-y-4">
             <!-- Dropzone -->
             <label for="file-upload"
               class="group block w-full cursor-pointer rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/50 p-8 text-center hover:border-slate-400 hover:bg-slate-50 transition duration-200 ease-in-out">
@@ -199,7 +198,6 @@
         </div>
     </footer> -->
 
-  <!-- Script Logic -->
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       const fileInput = document.getElementById('file-upload');
@@ -229,64 +227,72 @@
         }
       });
 
-      // Add loading state
-      // form.addEventListener('submit', () => {
-      //   uploadButton.disabled = true;
-      //   uploadButton.innerHTML = `
-      //       <span class="loading loading-spinner loading-sm mr-2"></span>
-      //       Processing Data...
-      //     `;
-      //   // Optional: Add a subtle pulse to the card to indicate activity
-      //   document.querySelector('.w-full.max-w-lg').classList.add('animate-pulse');
-      // });
-      // In your home.html, replace the form submit handler:
-form.addEventListener('submit', async (e) => {
-  e.preventDefault(); // Stop normal form submission
-  
-  const fileInput = document.getElementById('file-upload');
-  const file = fileInput.files[0];
-  
-  if (!file) return;
-  
-  console.log('🚀 Starting upload immediately...');
-  const startTime = Date.now();
-  
-  uploadButton.disabled = true;
-  uploadButton.innerHTML = `
-    <span class="loading loading-spinner loading-sm mr-2"></span>
-    Uploading...
-  `;
-  
-  try {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    console.log('📤 Sending to server...');
-    
-    const response = await fetch('/upload', {
-      method: 'POST',
-      body: formData
-    });
-    
-    const uploadTime = ((Date.now() - startTime) / 1000).toFixed(2);
-    console.log(`✅ Upload completed in ${uploadTime}s`);
-    
-    if (response.redirected) {
-      window.location.href = response.url;
-    } else if (response.ok) {
-      const html = await response.text();
-      document.body.innerHTML = html;
-    } else {
-      throw new Error('Upload failed');
-    }
-    
-  } catch (error) {
-    console.error('❌ Upload error:', error);
-    uploadButton.innerHTML = 'Start Analysis';
-    uploadButton.disabled = false;
-    alert('Upload failed: ' + error.message);
-  }
-});
+      // Upload with progress tracking
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        // Update button to show uploading state
+        uploadButton.disabled = true;
+        uploadButton.innerHTML = `
+          <span class="loading loading-spinner loading-sm mr-2"></span>
+          <span id="upload-status">Uploading... 0%</span>
+        `;
+
+        // Add progress bar
+        const progressContainer = document.createElement('div');
+        progressContainer.className = 'w-full bg-slate-200 rounded-full h-2 mt-3';
+        progressContainer.innerHTML = '<div id="progress-bar" class="bg-cyan-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>';
+        form.appendChild(progressContainer);
+
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            document.getElementById('upload-status').textContent = `Uploading... ${percent}%`;
+            document.getElementById('progress-bar').style.width = `${percent}%`;
+
+            if (percent === 100) {
+              document.getElementById('upload-status').textContent = 'Processing...';
+            }
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status === 200 || xhr.status === 303) {
+            // Handle redirect - extract location from response or use default
+            const redirectUrl = xhr.responseURL || xhr.getResponseHeader('Location');
+            if (redirectUrl) {
+              window.location.href = redirectUrl;
+            } else {
+              // Fallback: reload to let server handle redirect
+              window.location.reload();
+            }
+          } else {
+            // Error handling
+            uploadButton.innerHTML = 'Start Analysis';
+            uploadButton.disabled = false;
+            progressContainer.remove();
+            alert('Upload failed. Please try again.');
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          uploadButton.innerHTML = 'Start Analysis';
+          uploadButton.disabled = false;
+          progressContainer.remove();
+          alert('Upload failed. Please check your connection.');
+        });
+
+        xhr.open('POST', '/upload');
+        xhr.send(formData);
+      });
     });
   </script>
 </body>
