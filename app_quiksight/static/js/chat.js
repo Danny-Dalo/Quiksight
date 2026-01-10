@@ -132,3 +132,4 @@ messageInput.addEventListener("keypress", e => {  // 'Enter' key sends the messa
   if (e.key === "Enter") sendMessage();
 });
 
+

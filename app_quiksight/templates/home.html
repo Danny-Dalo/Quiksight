@@ -17,9 +17,6 @@
 
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='img/Q-favicon.png') }}" />
 
-  <!-- SheetJS for client-side file parsing (reduces server CPU load) -->
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-
   <style>
     body {
       font-family: 'Inter', sans-serif;
@@ -83,7 +80,7 @@
             <!-- <p class="text-sm text-slate-500">Securely upload your file to begin.</p> -->
           </div>
 
-          <form id="upload-form" class="space-y-4">
+          <form action="/upload" method="post" enctype="multipart/form-data" class="space-y-4">
             <!-- Dropzone -->
             <label for="file-upload"
               class="group block w-full cursor-pointer rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/50 p-8 text-center hover:border-slate-400 hover:bg-slate-50 transition duration-200 ease-in-out">
@@ -124,16 +121,8 @@
             <button id="upload-btn" type="submit"
               class="w-full py-3 px-4 rounded-xl bg-slate-900 text-white font-semibold shadow-lg shadow-slate-900/10 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition transform active:scale-[0.98]"
               disabled>
-              <span id="btn-text">Start Analysis</span>
-              <span id="btn-loading" class="hidden">
-                <span class="loading loading-spinner loading-sm mr-2"></span>
-                <span id="btn-status">Processing...</span>
-              </span>
+              Start Analysis
             </button>
-
-            <!-- Error display -->
-            <div id="upload-error"
-              class="hidden mt-4 p-3 rounded-lg bg-red-50 text-red-600 text-sm text-center border border-red-100"></div>
           </form>
 
           {% if error %}
@@ -209,8 +198,7 @@
         </div>
     </footer> -->
 
-  <!-- Upload Script (client-side parsing) -->
-  <script src="{{ url_for('static', path='js/upload.js') }}"></script>
+  <!-- Script Logic -->
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       const fileInput = document.getElementById('file-upload');
@@ -218,105 +206,37 @@
       const dropzoneText = document.getElementById('dropzone-text');
       const fileNameDisplay = document.getElementById('file-name-display');
       const fileNameSpan = document.getElementById('file-name');
-      const form = document.getElementById('upload-form');
-      const errorDiv = document.getElementById('upload-error');
-      const btnText = document.getElementById('btn-text');
-      const btnLoading = document.getElementById('btn-loading');
-      const btnStatus = document.getElementById('btn-status');
-      const uploadCard = document.querySelector('.w-full.max-w-lg');
+      const form = document.querySelector('form');
 
-      // Helper: Show error
-      function showError(message) {
-        errorDiv.textContent = message;
-        errorDiv.classList.remove('hidden');
-      }
-
-      // Helper: Hide error
-      function hideError() {
-        errorDiv.classList.add('hidden');
-      }
-
-      // Helper: Set loading state
-      function setLoading(isLoading, statusText = 'Processing...') {
-        uploadButton.disabled = isLoading;
-        if (isLoading) {
-          btnText.classList.add('hidden');
-          btnLoading.classList.remove('hidden');
-          btnStatus.textContent = statusText;
-          uploadCard.classList.add('animate-pulse');
-        } else {
-          btnText.classList.remove('hidden');
-          btnLoading.classList.add('hidden');
-          uploadCard.classList.remove('animate-pulse');
-        }
-      }
-
-      // File selection handler
       fileInput.addEventListener('change', () => {
-        hideError();
         if (fileInput.files.length > 0) {
-          const file = fileInput.files[0];
-          fileNameSpan.textContent = file.name;
+          const fileName = fileInput.files[0].name;
+          fileNameSpan.textContent = fileName;
 
           dropzoneText.classList.add('hidden');
           fileNameDisplay.classList.remove('hidden');
           fileNameDisplay.classList.add('flex');
 
-          // Validate file immediately
-          const validation = window.QuiksightUpload.validateFile(file);
-          if (!validation.valid) {
-            showError(validation.error);
-            uploadButton.disabled = true;
-          } else {
-            uploadButton.disabled = false;
-          }
+          uploadButton.disabled = false;
         } else {
           fileNameSpan.textContent = '';
           dropzoneText.classList.remove('hidden');
           fileNameDisplay.classList.add('hidden');
           fileNameDisplay.classList.remove('flex');
+
           uploadButton.disabled = true;
         }
       });
 
-      // Form submit handler - uses client-side parsing
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        hideError();
-
-        const file = fileInput.files[0];
-        if (!file) {
-          showError('Please select a file');
-          return;
-        }
-
-        try {
-          // Progress callback
-          const onProgress = (stage, message) => {
-            console.log(`[${stage}] ${message}`);
-            if (stage === 'parsing') {
-              setLoading(true, 'Parsing file...');
-            } else if (stage === 'uploading') {
-              setLoading(true, 'Sending to server...');
-            } else if (stage === 'complete') {
-              setLoading(true, 'Redirecting...');
-            }
-          };
-
-          setLoading(true, 'Validating...');
-          const result = await window.QuiksightUpload.handleFileUpload(file, onProgress);
-
-          if (result.success && result.session_id) {
-            // Redirect to chat page
-            window.location.href = `/chat?sid=${result.session_id}`;
-          } else {
-            throw new Error('Upload failed - no session ID returned');
-          }
-        } catch (error) {
-          console.error('Upload error:', error);
-          showError(error.message || 'Something went wrong. Please try again.');
-          setLoading(false);
-        }
+      // Add loading state
+      form.addEventListener('submit', () => {
+        uploadButton.disabled = true;
+        uploadButton.innerHTML = `
+            <span class="loading loading-spinner loading-sm mr-2"></span>
+            Processing Data...
+          `;
+        // Optional: Add a subtle pulse to the card to indicate activity
+        document.querySelector('.w-full.max-w-lg').classList.add('animate-pulse');
       });
     });
   </script>
