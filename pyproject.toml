@@ -113,6 +113,9 @@ dependencies = [
     "google>=3.0.0",
     "python-calamine>=0.6.1",
     "psutil>=7.2.1",
+    "polars>=1.37.0",
+    "fastexcel>=0.18.0",
+    "pyarrow>=22.0.0",
 ]
 
 [tool.setuptools.packages.find]
