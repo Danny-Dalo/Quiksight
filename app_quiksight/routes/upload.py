@@ -1,13 +1,14 @@
-from fastapi import APIRouter, File, UploadFile, Request, BackgroundTasks
+from fastapi import APIRouter, File, UploadFile, Request, BackgroundTasks, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.concurrency import run_in_threadpool
 import os
+import gzip
 import polars as pl
 import pandas as pd  # Keep for chat.py compatibility
 import io
 import logging
-from typing import Union, Dict
+from typing import Union, Dict, Optional
 import uuid
 import time
 import asyncio
@@ -276,20 +277,36 @@ def initialize_session_data(session_id: str, df_polars: pl.DataFrame, chat_sessi
 
 
 @router.post("/upload", response_class=HTMLResponse)
-async def upload_file(request: Request, file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
+async def upload_file(
+    request: Request, 
+    file: UploadFile = File(...), 
+    original_filename: Optional[str] = Form(None),
+    compressed: Optional[str] = Form(None),
+    background_tasks: BackgroundTasks = None
+):
     log_section("📤 NEW FILE UPLOAD REQUEST")
 
     if not file or file.filename == "":
         logger.warning("No file provided")
         return templates.TemplateResponse("home.html", {"request": request, "error": "Please upload a file"})
     
-    logger.info(f"File: {file.filename}")
+    # Handle compressed uploads from frontend
+    is_compressed = compressed == "true"
+    actual_filename = original_filename if original_filename else file.filename
+    
+    # Remove .gz extension if it was added by frontend
+    if actual_filename.endswith('.gz'):
+        actual_filename = actual_filename[:-3]
+    
+    logger.info(f"File: {actual_filename} | Compressed: {is_compressed}")
     
     # Quick size check (non-blocking)
     file.file.seek(0, os.SEEK_END)
     file_size_bytes = file.file.tell()
     file.file.seek(0)
     
+    # For compressed files, the actual file will be larger after decompression
+    # But we check the compressed size for transfer limits
     max_size = 30 * 1024 * 1024
     if file_size_bytes > max_size:
         logger.warning("File too large")
@@ -298,8 +315,8 @@ async def upload_file(request: Request, file: UploadFile = File(...), background
             "error": "File too large. Max 30MB."
         })
     
-    # Extension validation
-    _, ext = os.path.splitext(file.filename.lower())
+    # Extension validation (check original filename)
+    _, ext = os.path.splitext(actual_filename.lower())
     if ext not in ALLOWED_EXTENSIONS:
         logger.warning(f"Invalid extension: {ext}")
         return templates.TemplateResponse("home.html", {
@@ -309,6 +326,26 @@ async def upload_file(request: Request, file: UploadFile = File(...), background
 
     try:
         pipeline_start = time.time()
+        
+        # Decompress if needed
+        if is_compressed:
+            logger.info("[0/3] Decompressing gzip data...")
+            decompress_start = time.time()
+            compressed_data = await run_in_threadpool(file.file.read)
+            decompressed_data = await run_in_threadpool(gzip.decompress, compressed_data)
+            logger.info(f"✓ Decompressed: {len(compressed_data)/1024:.1f}KB → {len(decompressed_data)/1024:.1f}KB ({time.time()-decompress_start:.2f}s)")
+            
+            # Create a mock file-like object for read_file_polars
+            class MockUploadFile:
+                def __init__(self, data: bytes, filename: str):
+                    self.file = io.BytesIO(data)
+                    self.filename = filename
+            
+            file = MockUploadFile(decompressed_data, actual_filename)
+            file_size_bytes = len(decompressed_data)
+        else:
+            # Update filename for non-compressed uploads
+            file.filename = actual_filename
         
         # OPTIMIZATION 1: Use Polars for fast file reading
         logger.info("[1/3] Reading file (Polars - async)...")

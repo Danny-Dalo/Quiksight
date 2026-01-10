@@ -10,6 +10,9 @@
   <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
   <script src="https://cdn.tailwindcss.com"></script>
 
+  <!-- Pako for client-side gzip compression -->
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+
   <!-- Fonts: Inter for that clean SaaS look -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -227,21 +230,26 @@
         }
       });
 
-      // Upload with progress tracking
-      form.addEventListener('submit', (e) => {
+      // Compress file using pako (gzip)
+      async function compressFile(file) {
+        const arrayBuffer = await file.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        const compressed = pako.gzip(uint8Array);
+        return new Blob([compressed], { type: 'application/gzip' });
+      }
+
+      // Upload with compression and progress tracking
+      form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const file = fileInput.files[0];
         if (!file) return;
 
-        const formData = new FormData();
-        formData.append('file', file);
-
-        // Update button to show uploading state
+        // Update button to show compressing state
         uploadButton.disabled = true;
         uploadButton.innerHTML = `
           <span class="loading loading-spinner loading-sm mr-2"></span>
-          <span id="upload-status">Uploading... 0%</span>
+          <span id="upload-status">Compressing file...</span>
         `;
 
         // Add progress bar
@@ -250,48 +258,87 @@
         progressContainer.innerHTML = '<div id="progress-bar" class="bg-cyan-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>';
         form.appendChild(progressContainer);
 
-        const xhr = new XMLHttpRequest();
+        try {
+          // Compress the file
+          const originalSize = file.size;
+          const compressedBlob = await compressFile(file);
+          const compressedSize = compressedBlob.size;
+          const ratio = Math.round((1 - compressedSize / originalSize) * 100);
 
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const percent = Math.round((e.loaded / e.total) * 100);
-            document.getElementById('upload-status').textContent = `Uploading... ${percent}%`;
-            document.getElementById('progress-bar').style.width = `${percent}%`;
+          console.log(`Compression: ${(originalSize / 1024).toFixed(1)}KB → ${(compressedSize / 1024).toFixed(1)}KB (${ratio}% smaller)`);
 
-            if (percent === 100) {
-              document.getElementById('upload-status').textContent = 'Processing...';
+          document.getElementById('upload-status').textContent = `Uploading... 0%`;
+
+          const formData = new FormData();
+          // Send compressed file with original filename + .gz extension marker
+          formData.append('file', compressedBlob, file.name + '.gz');
+          formData.append('original_filename', file.name);
+          formData.append('compressed', 'true');
+
+          const xhr = new XMLHttpRequest();
+
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              const percent = Math.round((e.loaded / e.total) * 100);
+              document.getElementById('upload-status').textContent = `Uploading... ${percent}%`;
+              document.getElementById('progress-bar').style.width = `${percent}%`;
+
+              if (percent === 100) {
+                document.getElementById('upload-status').textContent = 'Processing...';
+              }
             }
-          }
-        });
+          });
 
-        xhr.addEventListener('load', () => {
-          if (xhr.status === 200 || xhr.status === 303) {
-            // Handle redirect - extract location from response or use default
-            const redirectUrl = xhr.responseURL || xhr.getResponseHeader('Location');
-            if (redirectUrl) {
-              window.location.href = redirectUrl;
+          xhr.addEventListener('load', () => {
+            if (xhr.status === 200 || xhr.status === 303) {
+              const redirectUrl = xhr.responseURL || xhr.getResponseHeader('Location');
+              if (redirectUrl) {
+                window.location.href = redirectUrl;
+              } else {
+                window.location.reload();
+              }
             } else {
-              // Fallback: reload to let server handle redirect
-              window.location.reload();
+              uploadButton.innerHTML = 'Start Analysis';
+              uploadButton.disabled = false;
+              progressContainer.remove();
+              alert('Upload failed. Please try again.');
             }
-          } else {
-            // Error handling
+          });
+
+          xhr.addEventListener('error', () => {
             uploadButton.innerHTML = 'Start Analysis';
             uploadButton.disabled = false;
             progressContainer.remove();
-            alert('Upload failed. Please try again.');
-          }
-        });
+            alert('Upload failed. Please check your connection.');
+          });
 
-        xhr.addEventListener('error', () => {
-          uploadButton.innerHTML = 'Start Analysis';
-          uploadButton.disabled = false;
-          progressContainer.remove();
-          alert('Upload failed. Please check your connection.');
-        });
+          xhr.open('POST', '/upload');
+          xhr.send(formData);
 
-        xhr.open('POST', '/upload');
-        xhr.send(formData);
+        } catch (err) {
+          console.error('Compression error:', err);
+          // Fallback: send uncompressed
+          document.getElementById('upload-status').textContent = 'Uploading (uncompressed)...';
+
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const xhr = new XMLHttpRequest();
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              const percent = Math.round((e.loaded / e.total) * 100);
+              document.getElementById('upload-status').textContent = `Uploading... ${percent}%`;
+              document.getElementById('progress-bar').style.width = `${percent}%`;
+            }
+          });
+          xhr.addEventListener('load', () => {
+            if (xhr.status === 200 || xhr.status === 303) {
+              window.location.href = xhr.responseURL || '/';
+            }
+          });
+          xhr.open('POST', '/upload');
+          xhr.send(formData);
+        }
       });
     });
   </script>
