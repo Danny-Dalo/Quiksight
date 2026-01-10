@@ -1,347 +1,226 @@
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quiksight - Chat with your Data</title>
+    
+    <!-- DaisyUI & Tailwind -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Fonts: Inter for that clean SaaS look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quiksight - Chat with your Data</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='img/Q-favicon.png') }}"/>
+    
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+      .hero-gradient {
+        background: radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.05) 0%, rgba(255, 255, 255, 0) 50%);
+      }
+    </style>
+  </head>
+  <body class="bg-slate-50 min-h-screen flex flex-col text-slate-900">
 
-  <!-- DaisyUI & Tailwind -->
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Pako for client-side gzip compression -->
-  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
-
-  <!-- Fonts: Inter for that clean SaaS look -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-  <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='img/Q-favicon.png') }}" />
-
-  <style>
-    body {
-      font-family: 'Inter', sans-serif;
-    }
-
-    .hero-gradient {
-      background-color: #F5FEFD;
-    }
-  </style>
-</head>
-
-<body class="bg-slate-50 min-h-screen flex flex-col text-slate-900">
-
-  <!-- Navigation -->
-  <nav class="w-full bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between h-16 items-center">
-        <!-- Logo Area -->
-        <div class="flex items-center gap-2">
-          <!-- Placeholder for Logo Icon -->
-          <span class="font-bold text-xl text-cyan-900 tracking-tight">Quiksight</span>
-        </div>
-
-        <!-- Right Side Actions -->
-        <!-- <div class="flex items-center gap-4">
+    <!-- Navigation -->
+    <nav class="w-full bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <!-- Logo Area -->
+                <div class="flex items-center gap-2">
+                    <!-- Placeholder for Logo Icon -->
+                    <div class="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white font-bold text-lg">Q</div>
+                    <span class="font-bold text-xl tracking-tight">Quiksight</span>
+                </div>
+                
+                <!-- Right Side Actions -->
+                <div class="flex items-center gap-4">
                     <a href="#" class="text-sm font-medium text-slate-600 hover:text-black transition">Log in</a>
                     <a href="#" class="btn btn-sm btn-neutral rounded-lg px-5">Sign Up</a>
-                </div> -->
-      </div>
-    </div>
-  </nav>
+                </div>
+            </div>
+        </div>
+    </nav>
 
-  <!-- Hero Section -->
-  <main class="flex-grow hero-gradient">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-24">
-
-      <!-- Headlines -->
-      <div class="text-center max-w-3xl mx-auto mb-10">
-        <!-- <div class="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-600 mb-6 shadow-sm">
+    <!-- Hero Section -->
+    <main class="flex-grow hero-gradient">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-24">
+        
+        <!-- Headlines -->
+        <div class="text-center max-w-3xl mx-auto mb-10">
+          <div class="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-600 mb-6 shadow-sm">
             <span class="flex h-2 w-2 rounded-full bg-green-500 mr-2"></span>
             Now supporting Excel & CSV
-          </div> -->
-
-        <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 mb-6 leading-tight">
-          Talk to Your Data <br />
-          <span class="text-transparent bg-clip-text bg-gradient-to-r from-slate-700 to-slate-900">In Plain
-            English</span>
-        </h1>
-
-        <p class="text-lg text-slate-500 mb-8 max-w-2xl mx-auto leading-relaxed">
-          Upload your spreadsheet, ask any question, and get clear explanations and downloadable tables instantly. No
-          code needed.
-        </p>
-      </div>
-
-      <!-- Upload Card (Centered) -->
-      <div class="w-full max-w-lg mx-auto bg-white rounded-2xl shadow-xl border border-slate-200 p-2">
-        <div class="p-6">
-          <div class="text-center mb-6">
-            <h3 class="text-lg font-semibold text-slate-900">Upload Your Data</h3>
-            <!-- <p class="text-sm text-slate-500">Securely upload your file to begin.</p> -->
           </div>
-
-          <form action="/upload" method="post" enctype="multipart/form-data" class="space-y-4">
-            <!-- Dropzone -->
-            <label for="file-upload"
-              class="group block w-full cursor-pointer rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/50 p-8 text-center hover:border-slate-400 hover:bg-slate-50 transition duration-200 ease-in-out">
-
-              <!-- Default State -->
-              <div id="dropzone-text" class="flex flex-col items-center justify-center space-y-3">
-                <div
-                  class="w-12 h-12 bg-white rounded-full shadow-sm border border-slate-200 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-slate-400 group-hover:text-slate-600"
-                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                  </svg>
-                </div>
-                <div>
-                  <p class="font-medium text-slate-700">Click to upload</p>
-                  <p class="text-xs text-slate-400 mt-1">XLSX, XLS, or CSV (Max 30MB)</p>
-                </div>
-              </div>
-
-              <!-- Selected State -->
-              <div id="file-name-display" class="hidden flex-col items-center space-y-3 py-2">
-                <div class="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center">
-                  <svg class="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <p class="text-sm text-slate-500">Ready to analyze:</p>
-                  <p id="file-name" class="font-semibold text-slate-900 truncate max-w-[250px]"></p>
-                </div>
-              </div>
-            </label>
-
-            <input id="file-upload" type="file" name="file" class="hidden" accept=".csv, .xlsx, .xls" required />
-
-            <button id="upload-btn" type="submit"
-              class="w-full py-3 px-4 rounded-xl bg-slate-900 text-white font-semibold shadow-lg shadow-slate-900/10 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition transform active:scale-[0.98]"
-              disabled>
-              Start Analysis
-            </button>
-          </form>
-
-          {% if error %}
-          <div class="mt-4 p-3 rounded-lg bg-red-50 text-red-600 text-sm text-center border border-red-100">
-            {{ error }}
-          </div>
-          {% endif %}
-        </div>
-      </div>
-
-      <!-- Features Grid -->
-      <div class="mt-24 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-
-        <!-- Feature 1 -->
-        <div class="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 hover:shadow-md transition duration-300">
-          <div
-            class="w-12 h-12 bg-cyan-900 rounded-xl flex items-center justify-center mb-6 text-white shadow-lg shadow-slate-900/20">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-              stroke="currentColor" class="w-6 h-6">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-            </svg>
-          </div>
-          <h3 class="text-xl font-bold text-cyan-900 mb-3">Upload Your Data</h3>
-          <p class="text-slate-500 leading-relaxed">
-            Simply upload an Excel or CSV file. Your data is cleaned and prepared for analysis instantly.
+          
+          <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 mb-6 leading-tight">
+            Turn Spreadsheets into <br />
+            <span class="text-transparent bg-clip-text bg-gradient-to-r from-slate-700 to-slate-900">Insights in Seconds</span>
+          </h1>
+          
+          <p class="text-lg text-slate-500 mb-8 max-w-2xl mx-auto leading-relaxed">
+            Stop wrestling with complex formulas. Upload your data, ask questions in plain English, and download clean results instantly.
           </p>
         </div>
 
-        <!-- Feature 2 -->
-        <div class="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 hover:shadow-md transition duration-300">
-          <div
-            class="w-12 h-12 bg-cyan-900 rounded-xl flex items-center justify-center mb-6 text-white shadow-lg shadow-slate-900/20">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-              stroke="currentColor" class="w-6 h-6">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
-            </svg>
-          </div>
-          <h3 class="text-xl font-bold text-cyan-900 mb-3">Ask Questions</h3>
-          <p class="text-slate-500 leading-relaxed">
-            Ask questions in plain English to get instant insights, generated tables, and get clear explanations from
-            your data.
-          </p>
+        <!-- Upload Card (Centered) -->
+        <div class="w-full max-w-lg mx-auto bg-white rounded-2xl shadow-xl border border-slate-200 p-2">
+            <div class="p-6">
+                <div class="text-center mb-6">
+                    <h3 class="text-lg font-semibold text-slate-900">Analyze your data</h3>
+                    <p class="text-sm text-slate-500">Securely upload your file to begin.</p>
+                </div>
+
+                <form action="/upload" method="post" enctype="multipart/form-data" class="space-y-4">
+                    <!-- Dropzone -->
+                    <label for="file-upload" 
+                          class="group block w-full cursor-pointer rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/50 p-8 text-center hover:border-slate-400 hover:bg-slate-50 transition duration-200 ease-in-out">
+                      
+                      <!-- Default State -->
+                      <div id="dropzone-text" class="flex flex-col items-center justify-center space-y-3">
+                        <div class="w-12 h-12 bg-white rounded-full shadow-sm border border-slate-200 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-slate-400 group-hover:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-medium text-slate-700">Click to upload or drag and drop</p>
+                            <p class="text-xs text-slate-400 mt-1">XLSX, XLS, or CSV (Max 30MB)</p>
+                        </div>
+                      </div>
+
+                      <!-- Selected State -->
+                      <div id="file-name-display" class="hidden flex-col items-center space-y-3 py-2">
+                        <div class="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center">
+                            <svg class="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500">Ready to analyze:</p>
+                            <p id="file-name" class="font-semibold text-slate-900 truncate max-w-[250px]"></p>
+                        </div>
+                      </div>
+                    </label>
+
+                    <input id="file-upload" type="file" name="file" class="hidden" accept=".csv, .xlsx, .xls" required />
+
+                    <button id="upload-btn" type="submit"
+                            class="w-full py-3 px-4 rounded-xl bg-slate-900 text-white font-semibold shadow-lg shadow-slate-900/10 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition transform active:scale-[0.98]"
+                            disabled>
+                        Start Analysis
+                    </button>
+                </form>
+
+                {% if error %}
+                  <div class="mt-4 p-3 rounded-lg bg-red-50 text-red-600 text-sm text-center border border-red-100">
+                      {{ error }}
+                  </div>
+                {% endif %}
+            </div>
         </div>
 
-        <!-- Feature 3 -->
-        <div class="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 hover:shadow-md transition duration-300">
-          <div
-            class="w-12 h-12 bg-cyan-900 rounded-xl flex items-center justify-center mb-6 text-white shadow-lg shadow-slate-900/20">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-              stroke="currentColor" class="w-6 h-6">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-            </svg>
-          </div>
-          <h3 class="text-xl font-bold text-cyan-900 mb-3">Export Results</h3>
-          <p class="text-slate-500 leading-relaxed">
-            Download the transformed tables and data as a new CSV file in one click.
-          </p>
-        </div>
+        <!-- Features Grid -->
+        <div class="mt-24 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            
+            <!-- Feature 1 -->
+            <div class="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 hover:shadow-md transition duration-300">
+                <div class="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center mb-6 text-white shadow-lg shadow-slate-900/20">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                    </svg>
+                </div>
+                <h3 class="text-xl font-bold text-slate-900 mb-3">Upload Your Data</h3>
+                <p class="text-slate-500 leading-relaxed">
+                    Simply drop your Excel or CSV files. We parse, clean, and prepare your data for analysis instantly.
+                </p>
+            </div>
 
+            <!-- Feature 2 -->
+            <div class="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 hover:shadow-md transition duration-300">
+                <div class="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center mb-6 text-white shadow-lg shadow-slate-900/20">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+                    </svg>
+                </div>
+                <h3 class="text-xl font-bold text-slate-900 mb-3">Ask Questions</h3>
+                <p class="text-slate-500 leading-relaxed">
+                    "What are the top 5 sales regions?" The AI analyzes your data and generates tables, math, and insights.
+                </p>
+            </div>
+
+            <!-- Feature 3 -->
+            <div class="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 hover:shadow-md transition duration-300">
+                <div class="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center mb-6 text-white shadow-lg shadow-slate-900/20">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>
+                </div>
+                <h3 class="text-xl font-bold text-slate-900 mb-3">Export Results</h3>
+                <p class="text-slate-500 leading-relaxed">
+                    Satisfied with the analysis? Download the transformed tables and data as a new CSV file in one click.
+                </p>
+            </div>
+
+        </div>
       </div>
-    </div>
-  </main>
+    </main>
 
-  <!-- Footer -->
-  <!-- <footer class="bg-white border-t border-slate-200 py-12">
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-12">
         <div class="max-w-7xl mx-auto px-4 text-center">
             <p class="text-slate-500 text-sm">
-                &copy; <script>document.write(new Date().getFullYear())</script> Quiksight. Built to make data easy.
+                &copy; <script>document.write(new Date().getFullYear())</script> Quiksight. Built for data curiosity.
             </p>
         </div>
-    </footer> -->
+    </footer>
 
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const fileInput = document.getElementById('file-upload');
-      const uploadButton = document.getElementById('upload-btn');
-      const dropzoneText = document.getElementById('dropzone-text');
-      const fileNameDisplay = document.getElementById('file-name-display');
-      const fileNameSpan = document.getElementById('file-name');
-      const form = document.querySelector('form');
+    <!-- Script Logic -->
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const fileInput = document.getElementById('file-upload');
+        const uploadButton = document.getElementById('upload-btn');
+        const dropzoneText = document.getElementById('dropzone-text');
+        const fileNameDisplay = document.getElementById('file-name-display');
+        const fileNameSpan = document.getElementById('file-name');
+        const form = document.querySelector('form');
 
-      fileInput.addEventListener('change', () => {
-        if (fileInput.files.length > 0) {
-          const fileName = fileInput.files[0].name;
-          fileNameSpan.textContent = fileName;
+        fileInput.addEventListener('change', () => {
+          if (fileInput.files.length > 0) {
+            const fileName = fileInput.files[0].name;
+            fileNameSpan.textContent = fileName;
 
-          dropzoneText.classList.add('hidden');
-          fileNameDisplay.classList.remove('hidden');
-          fileNameDisplay.classList.add('flex');
+            dropzoneText.classList.add('hidden');
+            fileNameDisplay.classList.remove('hidden');
+            fileNameDisplay.classList.add('flex');
 
-          uploadButton.disabled = false;
-        } else {
-          fileNameSpan.textContent = '';
-          dropzoneText.classList.remove('hidden');
-          fileNameDisplay.classList.add('hidden');
-          fileNameDisplay.classList.remove('flex');
-
-          uploadButton.disabled = true;
-        }
-      });
-
-      // Compress file using pako (gzip)
-      async function compressFile(file) {
-        const arrayBuffer = await file.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
-        const compressed = pako.gzip(uint8Array);
-        return new Blob([compressed], { type: 'application/gzip' });
-      }
-
-      // Upload with compression and progress tracking
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-
-        const file = fileInput.files[0];
-        if (!file) return;
-
-        // Update button to show compressing state
-        uploadButton.disabled = true;
-        uploadButton.innerHTML = `
-          <span class="loading loading-spinner loading-sm mr-2"></span>
-          <span id="upload-status">Compressing file...</span>
-        `;
-
-        // Add progress bar
-        const progressContainer = document.createElement('div');
-        progressContainer.className = 'w-full bg-slate-200 rounded-full h-2 mt-3';
-        progressContainer.innerHTML = '<div id="progress-bar" class="bg-cyan-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>';
-        form.appendChild(progressContainer);
-
-        try {
-          // Compress the file
-          const originalSize = file.size;
-          const compressedBlob = await compressFile(file);
-          const compressedSize = compressedBlob.size;
-          const ratio = Math.round((1 - compressedSize / originalSize) * 100);
-
-          console.log(`Compression: ${(originalSize / 1024).toFixed(1)}KB → ${(compressedSize / 1024).toFixed(1)}KB (${ratio}% smaller)`);
-
-          document.getElementById('upload-status').textContent = `Uploading... 0%`;
-
-          const formData = new FormData();
-          // Send compressed file with original filename + .gz extension marker
-          formData.append('file', compressedBlob, file.name + '.gz');
-          formData.append('original_filename', file.name);
-          formData.append('compressed', 'true');
-
-          const xhr = new XMLHttpRequest();
-
-          xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable) {
-              const percent = Math.round((e.loaded / e.total) * 100);
-              document.getElementById('upload-status').textContent = `Uploading... ${percent}%`;
-              document.getElementById('progress-bar').style.width = `${percent}%`;
-
-              if (percent === 100) {
-                document.getElementById('upload-status').textContent = 'Processing...';
-              }
-            }
-          });
-
-          xhr.addEventListener('load', () => {
-            if (xhr.status === 200 || xhr.status === 303) {
-              const redirectUrl = xhr.responseURL || xhr.getResponseHeader('Location');
-              if (redirectUrl) {
-                window.location.href = redirectUrl;
-              } else {
-                window.location.reload();
-              }
-            } else {
-              uploadButton.innerHTML = 'Start Analysis';
-              uploadButton.disabled = false;
-              progressContainer.remove();
-              alert('Upload failed. Please try again.');
-            }
-          });
-
-          xhr.addEventListener('error', () => {
-            uploadButton.innerHTML = 'Start Analysis';
             uploadButton.disabled = false;
-            progressContainer.remove();
-            alert('Upload failed. Please check your connection.');
-          });
+          } else {
+            fileNameSpan.textContent = '';
+            dropzoneText.classList.remove('hidden');
+            fileNameDisplay.classList.add('hidden');
+            fileNameDisplay.classList.remove('flex');
 
-          xhr.open('POST', '/upload');
-          xhr.send(formData);
+            uploadButton.disabled = true;
+          }
+        });
 
-        } catch (err) {
-          console.error('Compression error:', err);
-          // Fallback: send uncompressed
-          document.getElementById('upload-status').textContent = 'Uploading (uncompressed)...';
-
-          const formData = new FormData();
-          formData.append('file', file);
-
-          const xhr = new XMLHttpRequest();
-          xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable) {
-              const percent = Math.round((e.loaded / e.total) * 100);
-              document.getElementById('upload-status').textContent = `Uploading... ${percent}%`;
-              document.getElementById('progress-bar').style.width = `${percent}%`;
-            }
-          });
-          xhr.addEventListener('load', () => {
-            if (xhr.status === 200 || xhr.status === 303) {
-              window.location.href = xhr.responseURL || '/';
-            }
-          });
-          xhr.open('POST', '/upload');
-          xhr.send(formData);
-        }
+        // Add loading state
+        form.addEventListener('submit', () => {
+          uploadButton.disabled = true;
+          uploadButton.innerHTML = `
+            <span class="loading loading-spinner loading-sm mr-2"></span>
+            Processing Data...
+          `;
+          // Optional: Add a subtle pulse to the card to indicate activity
+          document.querySelector('.w-full.max-w-lg').classList.add('animate-pulse');
+        });
       });
-    });
-  </script>
-</body>
-
+    </script>
+  </body>
 </html>
