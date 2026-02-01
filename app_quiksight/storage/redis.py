@@ -1,8 +1,15 @@
+import os
 import redis
 import json
 from google.genai import types
 
-redis_client = redis.Redis(
+# Use REDIS_URL if available (common in cloud deployments)
+redis_url = os.getenv("REDIS_URL")
+
+if redis_url:
+    redis_client = redis.from_url(redis_url, decode_responses=True)
+else:
+    redis_client = redis.Redis(
     host="localhost",
     port=6379,
     db=0,

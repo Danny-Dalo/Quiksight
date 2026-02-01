@@ -79,6 +79,7 @@ __pycache__/
 *.pyc
 
 test.py
+data
 
 /quiksight_env
 .venv
