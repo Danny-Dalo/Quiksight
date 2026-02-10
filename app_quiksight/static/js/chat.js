@@ -189,6 +189,34 @@ messageInput.addEventListener("keypress", e => {  // 'Enter' key sends the messa
 });
 
 
+// ===================== LOAD CHAT HISTORY ON PAGE LOAD =====================
+async function loadChatHistory() {
+  if (!sessionID) return;
+
+  try {
+    const res = await fetch(`/chat/history?sid=${sessionID}`);
+    if (!res.ok) return;
+
+    const data = await res.json();
+    if (!data.messages || data.messages.length === 0) return;
+
+    // Render each message
+    data.messages.forEach(msg => {
+      if (msg.role === "user") {
+        appendMessage("user", msg.content);
+      } else if (msg.role === "ai") {
+        appendMessage("ai", msg.content);
+      }
+    });
+
+  } catch (err) {
+    console.log("Could not load chat history:", err);
+  }
+}
+
+// Load history when page loads
+loadChatHistory();
+// ===================== LOAD CHAT HISTORY ON PAGE LOAD =====================
 
 
 

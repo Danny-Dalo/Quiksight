@@ -8,7 +8,7 @@ from pydantic import BaseModel
 import datetime
 import logging
 import uuid
-import os, io, sys
+import os, io, sys, textwrap
 import pandas as pd
 import numpy as np
 import json
@@ -204,11 +204,28 @@ def dataframe_to_styled_html(df: pd.DataFrame, download_id: str = None, max_rows
 # ==============================================================================
 #                           CODE EXECUTION
 # ==============================================================================
+def preprocess_code(code: str) -> str:
+    """Fix common AI-generated code issues before execution."""
+    # Normalize indentation (fixes mixed tabs/spaces and unexpected indents)
+    code = textwrap.dedent(code)
+    # Remove leading/trailing blank lines
+    lines = code.splitlines()
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return "\n".join(lines)
+
+
 def execute_user_code(code: str, df: pd.DataFrame):
-    """Execute AI-generated code in a sandboxed environment."""
+    """Execute AI-generated code in a sandboxed environment.
+    Returns dict with 'response', optionally 'modified_df', and 'error' if execution failed."""
     logger.info("   Executing AI-generated code...")
     
-    # Define the display function available to the AI (Adapted from old: now uses temp Parquet + Redis for downloads)
+    # Pre-process code to fix common issues
+    code = preprocess_code(code)
+    
+    # Define the display function available to the AI
     def display_table(data_frame, max_rows=10):
         if data_frame is None: return
         
@@ -236,11 +253,13 @@ def execute_user_code(code: str, df: pd.DataFrame):
     sys.stdout = stdout_buffer
 
     try:
-        # Whitelisted built-ins for safety (same as old)
+        # Whitelisted built-ins for safety
         safe_builtins = {
             "int": int, "float": float, "str": str, "bool": bool, "list": list, "dict": dict,
             "len": len, "range": range, "enumerate": enumerate, "zip": zip,
-            "sorted": sorted, "sum": sum, "min": min, "max": max, "print": print, "type": type
+            "sorted": sorted, "sum": sum, "min": min, "max": max, "print": print, "type": type,
+            "round": round, "abs": abs, "map": map, "filter": filter, "isinstance": isinstance,
+            "set": set, "tuple": tuple, "reversed": reversed, "any": any, "all": all
         }
         
         exec(code, {"__builtins__": safe_builtins}, local_env)
@@ -251,7 +270,10 @@ def execute_user_code(code: str, df: pd.DataFrame):
 
     except Exception as e:
         logger.error(f"   ✗ Code execution failed: {str(e)}")
-        print('<div style="color:#ef4444;font-size:0.9rem;margin-top:0.5rem;">Something went wrong while processing your request. Please try rephrasing your question.</div>')
+        return {
+            "response": {"execution_results": stdout_buffer.getvalue()},
+            "error": str(e)
+        }
 
     finally:
         sys.stdout = sys.__stdout__
@@ -487,7 +509,7 @@ Do NOT include any text before or after the JSON. Only output valid JSON."""
         code = response_data.get('code_generated', '')
         should_execute = response_data.get('should_execute', False)
         
-        # Save AI Message
+        # Save AI text (for model context / history)
         save_chat_message(sid, "model", ai_text)
 
         execution_results = ""
@@ -495,16 +517,112 @@ Do NOT include any text before or after the JSON. Only output valid JSON."""
             exec_result = execute_user_code(code, df)
             execution_results = exec_result["response"].get("execution_results", "")
             
+            # ===== AUTO-RETRY: If code failed, ask AI to fix it =====
+            if "error" in exec_result:
+                error_msg = exec_result["error"]
+                logger.info(f"   🔄 Auto-retrying: asking AI to fix code error...")
+                
+                fix_prompt = (
+                    f"Your previous code failed with this error: {error_msg}\n\n"
+                    f"Failed code:\n```python\n{code}\n```\n\n"
+                    f"Fix the code and respond in the same JSON format. "
+                    f"Make sure variables are defined, indentation is correct, and the code is self-contained."
+                )
+                
+                try:
+                    # Re-use whichever provider worked before
+                    if ai_result.get("provider") == "OpenRouter" and OPENROUTER_API_KEY:
+                        retry_messages = [{"role": "system", "content": system_content}]
+                        retry_messages.extend(past_history_openrouter)
+                        retry_messages.append({"role": "user", "content": req.message})
+                        retry_messages.append({"role": "assistant", "content": ai_result["content"]})
+                        retry_messages.append({"role": "user", "content": fix_prompt})
+                        
+                        retry_resp = requests.post(
+                            url=OPENROUTER_URL,
+                            headers={
+                                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                                "Content-Type": "application/json",
+                                "X-Title": "Quiksight"
+                            },
+                            json={
+                                "model": OPENROUTER_MODEL,
+                                "messages": retry_messages,
+                                "temperature": 0.0,
+                                "response_format": {"type": "json_object"}
+                            },
+                            timeout=60
+                        )
+                        retry_resp.raise_for_status()
+                        fix_content = retry_resp.json()['choices'][0]['message']['content']
+                    else:
+                        past_history_gemini = get_chat_history(sid, limit=10)
+                        fix_chat = gemini_client.chats.create(
+                            model="gemini-2.0-flash",
+                            config=types.GenerateContentConfig(
+                                system_instruction=system_content,
+                                response_mime_type="application/json",
+                                response_schema=list[ModelResponse],
+                                temperature=0.0
+                            ),
+                            history=past_history_gemini + [
+                                types.Content(role="user", parts=[types.Part(text=req.message)]),
+                                types.Content(role="model", parts=[types.Part(text=ai_result["content"])]),
+                            ]
+                        )
+                        fix_response = fix_chat.send_message(fix_prompt)
+                        fix_content = fix_response.text
+                    
+                    # Parse the fixed response
+                    fix_data = parse_ai_response(fix_content)
+                    fixed_code = fix_data.get('code_generated', '')
+                    fixed_text = fix_data.get('text_explanation', '')
+                    
+                    if fixed_code:
+                        logger.info("   🔄 Re-executing fixed code...")
+                        exec_result2 = execute_user_code(fixed_code, df)
+                        
+                        if "error" not in exec_result2:
+                            # Success! Use the fixed results
+                            logger.info("   ✓ Auto-retry succeeded")
+                            execution_results = exec_result2["response"].get("execution_results", "")
+                            code = fixed_code
+                            if fixed_text:
+                                ai_text = fixed_text
+                            if "modified_df" in exec_result2:
+                                exec_result2["modified_df"].to_parquet(df_path)
+                            # Clear the original failed result's modified_df tracking
+                            exec_result = exec_result2
+                        else:
+                            logger.warning(f"   ✗ Auto-retry also failed: {exec_result2['error']}")
+                            execution_results = '<div style="color:#ef4444;font-size:0.9rem;margin-top:0.5rem;">Something went wrong while processing your request. Please try rephrasing your question.</div>'
+                    else:
+                        execution_results = '<div style="color:#ef4444;font-size:0.9rem;margin-top:0.5rem;">Something went wrong while processing your request. Please try rephrasing your question.</div>'
+                        
+                except Exception as retry_err:
+                    logger.warning(f"   ✗ Auto-retry request failed: {retry_err}")
+                    execution_results = '<div style="color:#ef4444;font-size:0.9rem;margin-top:0.5rem;">Something went wrong while processing your request. Please try rephrasing your question.</div>'
+            # ===== END AUTO-RETRY =====
+            
             # Save updated DF if modified
             if "modified_df" in exec_result:
                 exec_result["modified_df"].to_parquet(df_path)
+
+        # Save the full rendered output for frontend history restoration
+        full_model_html = ""
+        if ai_text:
+            full_model_html += ai_text
+        if execution_results:
+            full_model_html += execution_results
+        if full_model_html:
+            save_chat_message(sid, "model_display", full_model_html)
 
         return {
             "response": {
                 "text": ai_text,
                 "code": code,
                 "execution_results": execution_results,
-                "provider": ai_result.get("provider", "unknown")  # Optional: shows which provider was used
+                "provider": ai_result.get("provider", "unknown")
             }
         }
 
@@ -516,15 +634,33 @@ Do NOT include any text before or after the JSON. Only output valid JSON."""
     
 
 
-
-
-
-
-
-
-
-
-
+@router.get("/chat/history")
+async def chat_history_endpoint(sid: str):
+    """Return chat history for frontend rendering on page load."""
+    redis_key = f"session:{sid}"
+    if not redis_client.exists(redis_key):
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    history_key = f"history:{sid}"
+    raw_history = redis_client.lrange(history_key, 0, -1)  # Get all messages
+    
+    messages = []
+    for item in raw_history:
+        msg = json.loads(item)
+        role = msg.get("role", "")
+        text = msg.get("text", "")
+        
+        # Skip model messages (they're just for AI context)
+        # Use model_display messages for the frontend (they contain full rendered HTML)
+        if role == "model":
+            continue
+        
+        if role == "user":
+            messages.append({"role": "user", "content": text})
+        elif role == "model_display":
+            messages.append({"role": "ai", "content": text})
+    
+    return {"messages": messages}
 
 @router.get("/chat/download/{download_id}")
 async def download_result(download_id: str):

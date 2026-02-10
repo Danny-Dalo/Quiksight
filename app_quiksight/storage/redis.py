@@ -71,7 +71,6 @@ def save_chat_message(sid: str, role: str, text: str):
     """Push to the end of the list (Right Push) to maintain chat order"""
     redis_client.rpush(history_key, message_data)
     
-    """Removes 20th item"""
-    redis_client.ltrim(history_key, -20, -1)
-
+    """Removes oldest items beyond limit"""
+    redis_client.ltrim(history_key, -60, -1)
     redis_client.expire(history_key, 3600)
