@@ -10,6 +10,52 @@ const messageInput = document.getElementById("message-input");
 const sendBtn = document.getElementById("send-btn");
 const textarea = document.getElementById('message-input')
 
+
+// ===================== TAB SWITCHING & PLOTLY =====================
+function qsTabSwitch(clickedTab, targetPanelId) {
+  const container = clickedTab.closest('.qs-viz');
+  if (!container) return;
+
+  // Deactivate all tabs and panels
+  container.querySelectorAll('.qs-tab').forEach(t => t.classList.remove('qs-tab-active'));
+  container.querySelectorAll('.qs-panel').forEach(p => {
+    p.style.display = 'none';
+    p.classList.remove('qs-panel-active');
+  });
+
+  // Activate clicked tab and target panel
+  clickedTab.classList.add('qs-tab-active');
+  const panel = document.getElementById(targetPanelId);
+  if (!panel) return;
+  panel.style.display = 'block';
+  panel.classList.add('qs-panel-active');
+
+  // Lazy-init Plotly chart on first view
+  const chartDiv = panel.querySelector('.qs-plotly-chart');
+  if (chartDiv && !chartDiv.hasAttribute('data-rendered')) {
+    const dataScript = panel.querySelector('script.qs-plotly-data');
+    if (dataScript && typeof Plotly !== 'undefined') {
+      try {
+        const plotData = JSON.parse(dataScript.textContent);
+        Plotly.newPlot(chartDiv, plotData.data, plotData.layout, {
+          responsive: true,
+          displaylogo: false,
+          modeBarButtonsToRemove: ['select2d', 'lasso2d']
+        });
+        chartDiv.setAttribute('data-rendered', 'true');
+      } catch (e) {
+        chartDiv.innerHTML = '<p style="color:#9ca3af;text-align:center;padding:2rem;">Could not render chart</p>';
+      }
+    }
+  }
+
+  // Resize already-rendered chart (handles display:none → block sizing)
+  if (chartDiv && chartDiv.hasAttribute('data-rendered') && typeof Plotly !== 'undefined') {
+    Plotly.Plots.resize(chartDiv);
+  }
+}
+// ===================== TAB SWITCHING & PLOTLY =====================
+
 // Removing this cancels the "Enter = Send" functionality
 textarea.addEventListener('input', () => {
   textarea.style.height = 'auto'; // Reset height

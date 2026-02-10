@@ -41,6 +41,27 @@ def get_chat_history(sid: str, limit: int = 20):
     return formatted_history
 
 
+def get_chat_history_openrouter(sid: str, limit: int = 20):
+    """
+    Fetches the last 'limit' messages from Redis and formats them 
+    for the OpenRouter API (OpenAI-compatible format).
+    """
+    history_key = f"history:{sid}"
+    raw_history = redis_client.lrange(history_key, -limit, -1)
+    
+    formatted_history = []
+    for item in raw_history:
+        msg_data = json.loads(item)
+        
+        # OpenRouter uses "assistant" instead of "model"
+        role = "assistant" if msg_data["role"] == "model" else msg_data["role"]
+        
+        formatted_history.append({
+            "role": role,
+            "content": msg_data["text"]
+        })
+    return formatted_history
+
 
 def save_chat_message(sid: str, role: str, text: str):
     """Saves a single message to Redis history"""

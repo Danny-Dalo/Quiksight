@@ -1,5 +1,3 @@
-
-
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -14,15 +12,18 @@ import os, io, sys
 import pandas as pd
 import numpy as np
 import json
+import requests
 
-
-from app_quiksight.storage.redis import redis_client, save_chat_message, get_chat_history
+# Gemini SDK for fallback
 from google import genai
 from google.genai import types
-from api_training2.config import GEMINI_API_KEY
+
+from app_quiksight.storage.redis import redis_client, save_chat_message, get_chat_history_openrouter, get_chat_history
+from api_training2.config import OPENROUTER_API_KEY, OPENROUTER_MODEL, GEMINI_API_KEY
 from .upload import SYSTEM_INSTRUCTION, make_ai_context
 
 logger = logging.getLogger("CHAT")
+
 
 def log_section(title: str, char: str = "━"):
     line = char * 50
@@ -31,18 +32,108 @@ def log_section(title: str, char: str = "━"):
 templates = Jinja2Templates(directory="app_quiksight/templates")
 router = APIRouter()
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+# OpenRouter API endpoint (primary)
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+# Gemini client for fallback
+gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+
 DOWNLOAD_DIR = "data/downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 
+def _to_json_safe(val):
+    """Convert numpy/pandas types to JSON-serializable Python types."""
+    if pd.isna(val):
+        return None
+    if hasattr(val, 'item'):
+        return val.item()
+    return val
+
+
+def auto_detect_plotly(df):
+    """Auto-detect the best Plotly chart from a DataFrame. Returns dict or None."""
+    try:
+        cols = df.columns.tolist()
+        if len(cols) < 2 or len(df) == 0:
+            return None
+
+        # Convert Period columns to timestamps to avoid PeriodDtype errors
+        for c in cols:
+            if hasattr(df[c], 'dt') and isinstance(df[c].dtype, pd.PeriodDtype):
+                df = df.copy()
+                df[c] = df[c].dt.to_timestamp()
+
+        numeric_cols = [c for c in cols if pd.api.types.is_numeric_dtype(df[c])]
+        date_cols = [c for c in cols if pd.api.types.is_datetime64_any_dtype(df[c])]
+        cat_cols = [c for c in cols if c not in numeric_cols and c not in date_cols]
+
+        if not numeric_cols:
+            return None
+
+        palette = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6']
+        traces = []
+        tick_angle = -30
+
+        if date_cols and numeric_cols:
+            x_vals = df[date_cols[0]].astype(str).tolist()
+            tick_angle = 0
+            for i, y_col in enumerate(numeric_cols[:4]):
+                traces.append({
+                    "type": "scatter", "mode": "lines+markers",
+                    "x": x_vals, "y": [_to_json_safe(v) for v in df[y_col]],
+                    "name": y_col,
+                    "line": {"color": palette[i % len(palette)], "width": 2.5},
+                    "marker": {"size": 5}
+                })
+        elif cat_cols and numeric_cols:
+            x_vals = df[cat_cols[0]].astype(str).tolist()
+            for i, y_col in enumerate(numeric_cols[:4]):
+                traces.append({
+                    "type": "bar",
+                    "x": x_vals, "y": [_to_json_safe(v) for v in df[y_col]],
+                    "name": y_col,
+                    "marker": {"color": palette[i % len(palette)]}
+                })
+        elif len(numeric_cols) >= 2:
+            for i, y_col in enumerate(numeric_cols[1:4]):
+                traces.append({
+                    "type": "scatter", "mode": "markers",
+                    "x": [_to_json_safe(v) for v in df[numeric_cols[0]]],
+                    "y": [_to_json_safe(v) for v in df[y_col]],
+                    "name": y_col,
+                    "marker": {"color": palette[i % len(palette)], "size": 8, "opacity": 0.7}
+                })
+
+        if not traces:
+            return None
+
+        layout = {
+            "margin": {"l": 55, "r": 20, "t": 25, "b": 70},
+            "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)",
+            "font": {"family": "Inter, sans-serif", "size": 12, "color": "#6b7280"},
+            "xaxis": {"gridcolor": "#f3f4f6", "linecolor": "#e5e7eb", "zerolinecolor": "#e5e7eb", "tickangle": tick_angle},
+            "yaxis": {"gridcolor": "#f3f4f6", "linecolor": "#e5e7eb", "zerolinecolor": "#e5e7eb"},
+            "legend": {"orientation": "h", "y": -0.25, "x": 0.5, "xanchor": "center"},
+            "hoverlabel": {"bgcolor": "white", "font": {"family": "Inter", "size": 13}},
+            "bargap": 0.25,
+            "hovermode": "x unified" if date_cols else "closest",
+            "showlegend": len(traces) > 1
+        }
+        return {"data": traces, "layout": layout}
+
+    except Exception as e:
+        logger.warning(f"   ⚠ Chart auto-detect failed: {e}")
+        return None
+
 
 def dataframe_to_styled_html(df: pd.DataFrame, download_id: str = None, max_rows=10):
-    """Convert a Pandas DataFrame into a styled HTML table with a download button."""
-    # Limit rows for display
+    """Convert a DataFrame into a tabbed HTML view with table and auto-generated Plotly chart."""
     df_preview = df.head(max_rows)
+    viz_id = str(uuid.uuid4())[:8]
 
-    thead = "<thead class='bg-gray-50 text-gray-600 font-medium'><tr>"
+    # Build minimalistic table
+    thead = "<thead><tr>"
     for col in df_preview.columns:
         thead += f"<th>{col}</th>"
     thead += "</tr></thead>"
@@ -53,7 +144,7 @@ def dataframe_to_styled_html(df: pd.DataFrame, download_id: str = None, max_rows
         for col in df_preview.columns:
             val = row[col]
             if pd.isna(val) or val == "":
-                cell = '<span class="text-gray-400 italic">N/A</span>'
+                cell = '<span class="qs-na">\u2014</span>'
             elif len(str(val)) > 60:
                 safe_val = str(val).replace('"', '&quot;')
                 cell = f'<div class="tooltip tooltip-bottom text-left" data-tip="{safe_val}"><span class="truncate max-w-xs block">{safe_val}</span></div>'
@@ -63,34 +154,49 @@ def dataframe_to_styled_html(df: pd.DataFrame, download_id: str = None, max_rows
         tbody += "</tr>"
     tbody += "</tbody>"
 
-    # Download Button Logic
-    download_html = ""
+    # Download button in tab bar
+    dl_html = ""
     if download_id:
-        download_html = f"""
-        <div class="flex justify-between items-center mb-2 px-1">
-            <span class="text-xs text-gray-500 font-mono"></span>
-            <a href="/chat/download/{download_id}" target="_blank" class="btn btn-sm btn-outline btn-accent gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Download CSV
-            </a>
-        </div>
-        """
+        dl_html = (
+            f'<a href="/chat/download/{download_id}" target="_blank" class="qs-download-btn" title="Download CSV">'
+            '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">'
+            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>'
+            '</svg> CSV</a>'
+        )
 
-    return f"""
-    <div class="w-full max-w-7xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 p-3 mt-3">
-        {download_html}
-        <div class="overflow-x-auto">
-            <table class="table table-zebra table-pin-rows table-xs sm:table-sm">
-                {thead}{tbody}
-            </table>
-        </div>
-        <div class="text-xs text-gray-400 mt-2 text-center">
-            Displaying top {len(df_preview)} of {len(df)} rows
-        </div>
-    </div>
-    """
+    # Auto-detect Plotly chart
+    chart_data = auto_detect_plotly(df_preview)
+    chart_tab = ""
+    chart_panel = ""
+    if chart_data:
+        chart_json = json.dumps(chart_data).replace("</", "<\\/")
+        chart_tab = (
+            f'<button class="qs-tab" onclick="qsTabSwitch(this,\'chart-{viz_id}\')">'
+            '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+            '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 17V13"/><path d="M12 17V9"/><path d="M17 17V6"/></svg> Chart</button>'
+        )
+        chart_panel = (
+            f'<div class="qs-panel" id="chart-{viz_id}" style="display:none">'
+            f'<div class="qs-plotly-chart" id="plotly-{viz_id}" style="width:100%;min-height:320px;"></div>'
+            f'<script type="application/json" class="qs-plotly-data">{chart_json}</script></div>'
+        )
+
+    table_tab = (
+        f'<button class="qs-tab qs-tab-active" onclick="qsTabSwitch(this,\'table-{viz_id}\')">'
+        '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg> Table</button>'
+    )
+
+    row_info = f'{len(df_preview)} of {len(df)} rows'
+
+    return (
+        f'<div class="qs-viz" id="viz-{viz_id}">'
+        f'<div class="qs-tab-bar">{table_tab}{chart_tab}{dl_html}</div>'
+        f'<div class="qs-panel qs-panel-active" id="table-{viz_id}">'
+        f'<div style="overflow-x:auto"><table class="qs-table">{thead}{tbody}</table></div>'
+        f'<div class="qs-row-info">{row_info}</div></div>'
+        f'{chart_panel}</div>'
+    )
 
 
 
@@ -144,8 +250,8 @@ def execute_user_code(code: str, df: pd.DataFrame):
              return {"response": {"execution_results": stdout_buffer.getvalue()}, "modified_df": modified_df}
 
     except Exception as e:
-        logger.error(f"   ✗ Code execution failed: {str(e)[:100]}")
-        print(f"<div class='alert alert-warning text-sm mt-2'>Error: {str(e)[:100]}</div>")
+        logger.error(f"   ✗ Code execution failed: {str(e)}")
+        print('<div style="color:#ef4444;font-size:0.9rem;margin-top:0.5rem;">Something went wrong while processing your request. Please try rephrasing your question.</div>')
 
     finally:
         sys.stdout = sys.__stdout__
@@ -243,46 +349,143 @@ async def chat_endpoint(req: ChatRequest, sid: str):
         ai_context = make_ai_context(df, session_data.get("file_name", "Data"))
 
     """Loads chat history if theres any. Happens before new messages are sent"""
-    past_history = get_chat_history(sid, limit=10)
+    past_history_openrouter = get_chat_history_openrouter(sid, limit=10)
 
-    """Creates a new Gemini session each time a message is sent. Gives that new session data context and past messages"""
-    try:
-        chat = client.chats.create(
-            model="gemini-3-flash-preview",
-            # model="gemini-3-pro-preview",
+    """Build system content for both providers"""
+    system_content = f"""{SYSTEM_INSTRUCTION}
 
-            config=types.GenerateContentConfig(
-                system_instruction=f"{SYSTEM_INSTRUCTION}\n\n ###Context of the User's Data\n {ai_context}",
-                response_mime_type="application/json",
-                response_schema=list[ModelResponse], 
-                temperature=0.0
-            ),
-            history=past_history       # Loads AI with past interaction
+### Context of the User's Data
+{ai_context}
+
+### CRITICAL: Response Format
+You MUST respond with a valid JSON array containing exactly one object with this structure:
+[{{"text_explanation": "your explanation here", "code_generated": "python code if needed", "should_execute": true_or_false}}]
+
+Do NOT include any text before or after the JSON. Only output valid JSON."""
+
+    # ==================== HELPER FUNCTIONS ====================
+    
+    def try_openrouter() -> dict:
+        """Attempt to get response from OpenRouter API"""
+        messages = [{"role": "system", "content": system_content}]
+        messages.extend(past_history_openrouter)
+        messages.append({"role": "user", "content": req.message})
+        
+        logger.info(f"   🌐 Trying OpenRouter ({OPENROUTER_MODEL})...")
+        
+        response = requests.post(
+            url=OPENROUTER_URL,
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+                "X-Title": "Quiksight"
+            },
+            json={
+                "model": OPENROUTER_MODEL,
+                "messages": messages,
+                "temperature": 0.0,
+                "response_format": {"type": "json_object"}
+            },
+            timeout=60
         )
         
-        response = chat.send_message(req.message)   # Gemini's built-in send_message function
+        # Check for rate limits or server errors (trigger fallback)
+        if response.status_code in [429, 500, 502, 503, 504]:
+            raise requests.exceptions.RequestException(
+                f"OpenRouter returned {response.status_code}: {response.text[:200]}"
+            )
         
-        """Finally saves user message after it has been sent"""
-        save_chat_message(sid, "user", req.message)
-        # ================================= USER MESSAGE SENT ENDS HERE ==================================
+        response.raise_for_status()
+        result = response.json()
+        
+        ai_content = result['choices'][0]['message']['content']
+        return {"content": ai_content, "provider": "OpenRouter"}
+    
+    
+    def try_gemini() -> dict:
+        """Fallback to Gemini API directly"""
+        if not gemini_client:
+            raise Exception("Gemini fallback not available - no API key configured")
+        
+        logger.info("   🔄 Falling back to Gemini API...")
+        
+        # Get Gemini-formatted history
+        past_history_gemini = get_chat_history(sid, limit=10)
+        
+        chat = gemini_client.chats.create(
+            model="gemini-2.0-flash",
+            config=types.GenerateContentConfig(
+                system_instruction=system_content,
+                response_mime_type="application/json",
+                response_schema=list[ModelResponse],
+                temperature=0.0
+            ),
+            history=past_history_gemini
+        )
+        
+        response = chat.send_message(req.message)
+        return {"content": response.text, "provider": "Gemini"}
+    
+    
+    def parse_ai_response(content: str) -> dict:
+        """Parse AI response from either provider"""
+        # Clean possible markdown formatting
+        text = content.replace('```json', '').replace('```', '').strip()
+        
+        # Handle both array and object responses
+        parsed = json.loads(text)
+        if isinstance(parsed, list):
+            return parsed[0] if parsed else {}
+        return parsed
 
-        # =================================== AI RESPONSE STARTS HERE =====================================
+    # ==================== MAIN LOGIC WITH FALLBACK ====================
+    
+    try:
+        # Try OpenRouter first (primary)
+        openrouter_error = None
+        ai_result = None
+        
+        if OPENROUTER_API_KEY:
+            try:
+                ai_result = try_openrouter()
+                logger.info(f"   ✓ OpenRouter responded successfully")
+            except (requests.exceptions.Timeout, requests.exceptions.RequestException) as e:
+                openrouter_error = str(e)
+                logger.warning(f"   ⚠ OpenRouter failed: {openrouter_error[:100]}")
+        else:
+            openrouter_error = "No OpenRouter API key configured"
+            logger.info("   ⚠ OpenRouter not configured, using Gemini")
+        
+        # Fallback to Gemini if OpenRouter failed
+        if ai_result is None:
+            try:
+                ai_result = try_gemini()
+                logger.info(f"   ✓ Gemini responded successfully (fallback)")
+            except Exception as gemini_error:
+                logger.error(f"   ✗ Gemini fallback also failed: {gemini_error}")
+                # If both failed, raise the original OpenRouter error or Gemini error
+                if openrouter_error:
+                    raise HTTPException(status_code=502, detail=f"All AI providers failed. OpenRouter: {openrouter_error[:100]}")
+                raise HTTPException(status_code=502, detail=f"AI service error: {str(gemini_error)[:100]}")
+        
+        # Save user message after successful AI response
+        save_chat_message(sid, "user", req.message)
+        
         # Parse AI Response
         try:
-            # Clean possible markdown formatting
-            text = response.text.replace('```json', '').replace('```', '')
-            response_data = json.loads(text)[0]
-        except (json.JSONDecodeError, IndexError):
-             # Fallback if model fails strictly JSON (rare with low temp)
-             response_data = {
-                 "text_explanation": "I processed your request but had trouble formatting the response.",
-                 "code_generated": "",
-                 "should_execute": False
-             }
+            response_data = parse_ai_response(ai_result["content"])
+        except (json.JSONDecodeError, IndexError, KeyError) as e:
+            logger.error(f"   ✗ Failed to parse AI response: {e}")
+            logger.error(f"   Raw content: {ai_result['content'][:500]}")
+            response_data = {
+                "text_explanation": "I processed your request but had trouble formatting the response.",
+                "code_generated": "",
+                "should_execute": False
+            }
         
-        ai_text = response_data['text_explanation']
-        code = response_data['code_generated']
-        should_execute = response_data['should_execute']
+        ai_text = response_data.get('text_explanation', '')
+        code = response_data.get('code_generated', '')
+        should_execute = response_data.get('should_execute', False)
         
         # Save AI Message
         save_chat_message(sid, "model", ai_text)
@@ -300,10 +503,13 @@ async def chat_endpoint(req: ChatRequest, sid: str):
             "response": {
                 "text": ai_text,
                 "code": code,
-                "execution_results": execution_results
+                "execution_results": execution_results,
+                "provider": ai_result.get("provider", "unknown")  # Optional: shows which provider was used
             }
         }
 
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions as-is
     except Exception as e:
         logger.error(f"   ✗ Chat Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
