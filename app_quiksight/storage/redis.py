@@ -2,13 +2,22 @@ import os
 import redis
 import json
 from google.genai import types
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='\n%(asctime)s | %(levelname)-8s | %(name)-10s | %(message)s',
+    datefmt='%H:%M:%S'
+)
 
 # Use REDIS_URL if available (common in cloud deployments)
 redis_url = os.getenv("REDIS_URL")
 
 if redis_url:
+    logging.info("Redis URL present")
     redis_client = redis.from_url(redis_url, decode_responses=True)
 else:
+    logging.info("Redis URL not present. Switching to local redis client")
     redis_client = redis.Redis(
     host="localhost",
     port=6379,
