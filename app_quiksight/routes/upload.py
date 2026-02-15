@@ -13,7 +13,7 @@ import json
 # Redis Integration
 from app_quiksight.storage.redis import redis_client
 
-# Configure logging
+# logging config
 logging.basicConfig(
     level=logging.INFO,
     format='\n%(asctime)s | %(levelname)-8s | %(name)-10s | %(message)s',
@@ -141,6 +141,9 @@ should_execute: true
 - Format numbers: {:,} for thousands, :.2f for decimals, :.1%} for percentages
 - Wrap risky operations in try-except with helpful error messages
 - Use print() with HTML for insights AFTER showing data
+- KEEP CODE UNDER 40 LINES. If analysis is complex, focus on the most important parts.
+- AVOID complex nested f-strings with mixed quotes. Use simple string concatenation instead.
+- Use double quotes for HTML attributes and single quotes for Python strings, or vice versa—never mix.
 
 ## RESPONSE FORMAT
 - Use clean HTML: <p>, <strong>, <ul>, <ol>, <li>
@@ -366,7 +369,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
 
         total_time = time.time() - pipeline_start   # How long the whole upload process took
         log_section("               UPLOAD COMPLETE     ", "─")
-        logger.info(f"   Session: {session_id[:8]}... | Time: {total_time:.2f}s")
+        logger.info(f"   Session: {session_id[:8]}...{session_id[-4:]} | Time: {total_time:.2f}s")
         
         return RedirectResponse(url=f"/chat?sid={session_id}", status_code=303)
 
