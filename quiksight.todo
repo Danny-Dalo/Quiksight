@@ -1,29 +1,10 @@
-- Generate new API key
-- Chat box and data overview section in split screen view
-- Explore thinking model budgets
 - Implement a safer way to sandbox environment variables than exec()
-- model should be able to show plots
 - Better, more specific Error handling functions (network, request timeout, too many requests per time etc.)
 - Add clearer comments
-- As user sends the message, the "send" button should be disabled to avoid going over quota limit so fast
-- Outputted a markdown instead of html response
-- model inconsistencies in some responses
-- Improve UI/UX 
- - Consider implementing classes and objects
- - check out TOON inplace of JSON
 
 
 
-
-
-
-
-
-
-
-
-
-
+App Theme Colors
 Primary: Blue (#2563EB → Tailwind blue-600)
 
 Accent: Indigo or Teal (#6366F1 / #14B8A6)

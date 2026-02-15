@@ -80,6 +80,7 @@ __pycache__/
 
 test.py
 data
+.txt
 
 /quiksight_env
 .venv
