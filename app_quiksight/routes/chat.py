@@ -37,12 +37,115 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 
 
+def auto_detect_plotly(df: pd.DataFrame):
+    """Inspect a DataFrame and return the best Plotly chart as a dict {data, layout}, or None."""
+    if df.empty or len(df.columns) < 2:
+        return None
+
+    # Classify columns
+    cat_cols = [c for c in df.columns if df[c].dtype == 'object' or str(df[c].dtype) == 'category']
+    num_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+    date_cols = [c for c in df.columns if pd.api.types.is_datetime64_any_dtype(df[c])]
+
+    # Convert Period columns to timestamp
+    for c in df.columns:
+        if hasattr(df[c], 'dt') and hasattr(df[c].dt, 'to_timestamp'):
+            try:
+                df[c] = df[c].dt.to_timestamp()
+                date_cols.append(c)
+            except Exception:
+                pass
+
+    if not num_cols:
+        return None
+
+    try:
+        # Case 1: Date + Numeric → Line chart
+        if date_cols and num_cols:
+            x_col, y_col = date_cols[0], num_cols[0]
+            trace = {
+                "type": "scatter", "mode": "lines+markers",
+                "x": df[x_col].astype(str).tolist(),
+                "y": df[y_col].tolist(),
+                "name": y_col,
+                "line": {"color": "#0ea5e9", "width": 2},
+                "marker": {"size": 4}
+            }
+            layout = {
+                "xaxis": {"title": x_col}, "yaxis": {"title": y_col},
+                "margin": {"l": 50, "r": 20, "t": 30, "b": 50},
+                "height": 340, "plot_bgcolor": "#fff", "paper_bgcolor": "#fff"
+            }
+            return {"data": [trace], "layout": layout}
+
+        # Case 2: Categorical + Numeric → Horizontal bar
+        if cat_cols and num_cols:
+            x_col, y_col = cat_cols[0], num_cols[0]
+            sorted_df = df.sort_values(y_col, ascending=True).tail(15)
+            trace = {
+                "type": "bar", "orientation": "h",
+                "y": sorted_df[x_col].astype(str).tolist(),
+                "x": sorted_df[y_col].tolist(),
+                "name": y_col,
+                "marker": {"color": "#0ea5e9"}
+            }
+            layout = {
+                "xaxis": {"title": y_col}, "yaxis": {"title": "", "automargin": True},
+                "margin": {"l": 10, "r": 20, "t": 30, "b": 50},
+                "height": max(260, len(sorted_df) * 28),
+                "plot_bgcolor": "#fff", "paper_bgcolor": "#fff"
+            }
+            return {"data": [trace], "layout": layout}
+
+        # Case 3: Multiple numeric columns → grouped bar using index/first col as labels
+        if len(num_cols) >= 2:
+            label_col = cat_cols[0] if cat_cols else df.columns[0]
+            traces = []
+            colors = ["#0ea5e9", "#f97316", "#8b5cf6", "#10b981", "#ef4444"]
+            for i, nc in enumerate(num_cols[:5]):
+                traces.append({
+                    "type": "bar",
+                    "x": df[label_col].astype(str).tolist(),
+                    "y": df[nc].tolist(),
+                    "name": nc,
+                    "marker": {"color": colors[i % len(colors)]}
+                })
+            layout = {
+                "barmode": "group",
+                "xaxis": {"title": str(label_col)},
+                "margin": {"l": 50, "r": 20, "t": 30, "b": 50},
+                "height": 340, "plot_bgcolor": "#fff", "paper_bgcolor": "#fff"
+            }
+            return {"data": traces, "layout": layout}
+
+        # Case 4: Fallback — simple vertical bar of first numeric column
+        y_col = num_cols[0]
+        labels = df.iloc[:, 0].astype(str).tolist()[:20]
+        trace = {
+            "type": "bar",
+            "x": labels,
+            "y": df[y_col].tolist()[:20],
+            "marker": {"color": "#0ea5e9"}
+        }
+        layout = {
+            "yaxis": {"title": y_col},
+            "margin": {"l": 50, "r": 20, "t": 30, "b": 50},
+            "height": 340, "plot_bgcolor": "#fff", "paper_bgcolor": "#fff"
+        }
+        return {"data": [trace], "layout": layout}
+
+    except Exception as e:
+        logger.warning(f"auto_detect_plotly failed: {e}")
+        return None
+
+
 def dataframe_to_styled_html(df: pd.DataFrame, download_id: str = None, max_rows=10):
-    """Convert a Pandas DataFrame into a styled HTML table with a download button."""
-    # Limit rows for display
+    """Convert a DataFrame into a tabbed Chart + Table HTML container."""
+    viz_id = str(uuid.uuid4())[:8]
     df_preview = df.head(max_rows)
 
-    thead = "<thead class='bg-gray-50 text-gray-600 font-medium'><tr>"
+    # ── Build table HTML ──
+    thead = "<thead><tr>"
     for col in df_preview.columns:
         thead += f"<th>{col}</th>"
     thead += "</tr></thead>"
@@ -53,44 +156,61 @@ def dataframe_to_styled_html(df: pd.DataFrame, download_id: str = None, max_rows
         for col in df_preview.columns:
             val = row[col]
             if pd.isna(val) or val == "":
-                cell = '<span class="text-gray-400 italic">N/A</span>'
+                cell = '<span class="qs-na">N/A</span>'
             elif len(str(val)) > 60:
                 safe_val = str(val).replace('"', '&quot;')
-                cell = f'<div class="tooltip tooltip-bottom text-left" data-tip="{safe_val}"><span class="truncate max-w-xs block">{safe_val}</span></div>'
+                cell = f'<span title="{safe_val}" style="cursor:help">{safe_val[:57]}…</span>'
             else:
                 cell = str(val)
             tbody += f"<td>{cell}</td>"
         tbody += "</tr>"
     tbody += "</tbody>"
 
-    # Download Button Logic
-    download_html = ""
-    if download_id:
-        download_html = f"""
-        <div class="flex justify-between items-center mb-2 px-1">
-            <span class="text-xs text-gray-500 font-mono"></span>
-            <a href="/chat/download/{download_id}" target="_blank" class="btn btn-sm btn-outline btn-accent gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Download CSV
-            </a>
-        </div>
-        """
-
-    return f"""
-    <div class="w-full max-w-7xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 p-3 mt-3">
-        {download_html}
-        <div class="overflow-x-auto">
-            <table class="table table-zebra table-pin-rows table-xs sm:table-sm">
-                {thead}{tbody}
-            </table>
-        </div>
-        <div class="text-xs text-gray-400 mt-2 text-center">
-            Displaying top {len(df_preview)} of {len(df)} rows
-        </div>
+    table_html = f"""<div class="overflow-x-auto">
+        <table class="qs-table">{thead}{tbody}</table>
     </div>
-    """
+    <div class="qs-row-info">Showing {len(df_preview)} of {len(df)} rows</div>"""
+
+    # ── Build chart JSON ──
+    chart_json = auto_detect_plotly(df_preview)
+    chart_panel_content = ""
+    if chart_json:
+        chart_json_str = json.dumps(chart_json)
+        chart_panel_content = f"""<div class="qs-plotly-chart" id="chart-{viz_id}"></div>
+            <script class="qs-plotly-data" type="application/json">{chart_json_str}</script>"""
+    else:
+        chart_panel_content = '<p style="color:#9ca3af;text-align:center;padding:2rem;">No chart available for this data</p>'
+
+    # ── Download button ──
+    download_btn = ""
+    if download_id:
+        download_btn = f"""<a href="/chat/download/{download_id}" target="_blank" class="qs-download-btn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+            </svg>CSV</a>"""
+
+    # ── Assemble tabbed container ──
+    return f"""<div class="qs-viz" id="viz-{viz_id}">
+    <div class="qs-tab-bar">
+        <button class="qs-tab qs-tab-active" onclick="qsTabSwitch(this,'chart-panel-{viz_id}')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="#4d4f4e" class="size-4">
+            <path d="M12 2a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1h-1ZM6.5 6a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1V6ZM2 9a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9Z" />
+        </svg>
+        </button>
+        <button class="qs-tab" onclick="qsTabSwitch(this,'table-panel-{viz_id}')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#4d4f4e" class="size-4">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 0h7.5" />
+        </svg>
+        </button>
+        {download_btn}
+    </div>
+    <div class="qs-panel qs-panel-active" id="chart-panel-{viz_id}" style="display:block">
+        {chart_panel_content}
+    </div>
+    <div class="qs-panel" id="table-panel-{viz_id}" style="display:none">
+        {table_html}
+    </div>
+</div>"""
 
 
 
@@ -101,6 +221,16 @@ def dataframe_to_styled_html(df: pd.DataFrame, download_id: str = None, max_rows
 def execute_user_code(code: str, df: pd.DataFrame):
     """Execute AI-generated code in a sandboxed environment."""
     logger.info("   Executing AI-generated code...")
+    
+    # ── Strip import statements (AI sometimes ignores "NO imports" rule) ──
+    clean_lines = []
+    for line in code.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("import ") or stripped.startswith("from "):
+            logger.warning(f"   ⚠ Stripped import line: {stripped[:80]}")
+            continue
+        clean_lines.append(line)
+    code = "\n".join(clean_lines)
     
     # ── Syntax pre-check ──────────────────────────────────────────────
     try:
@@ -142,7 +272,13 @@ def execute_user_code(code: str, df: pd.DataFrame):
         else:
             print(f"<p>{data_frame}</p>")
 
-    local_env = {"df": df.copy(), "pd": pd, "np": np, "display_table": display_table}
+    import datetime as _dt, math as _math, re as _re, collections as _collections
+
+    local_env = {
+        "df": df.copy(), "pd": pd, "np": np, "display_table": display_table,
+        # Pre-loaded modules so AI doesn't need import statements
+        "datetime": _dt, "math": _math, "re": _re, "json": json, "collections": _collections,
+    }
     stdout_buffer = io.StringIO()
     sys.stdout = stdout_buffer
 
@@ -151,7 +287,10 @@ def execute_user_code(code: str, df: pd.DataFrame):
         safe_builtins = {
             "int": int, "float": float, "str": str, "bool": bool, "list": list, "dict": dict,
             "len": len, "range": range, "enumerate": enumerate, "zip": zip,
-            "sorted": sorted, "sum": sum, "min": min, "max": max, "print": print, "type": type
+            "sorted": sorted, "sum": sum, "min": min, "max": max, "print": print, "type": type,
+            "round": round, "abs": abs, "isinstance": isinstance, "tuple": tuple, "set": set,
+            "map": map, "filter": filter, "any": any, "all": all, "hasattr": hasattr,
+            "getattr": getattr, "reversed": reversed, "iter": iter, "next": next,
         }
         
         exec(code, {"__builtins__": safe_builtins}, local_env)

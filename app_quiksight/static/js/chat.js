@@ -49,10 +49,47 @@ function qsTabSwitch(clickedTab, targetPanelId) {
     }
   }
 
-  // Resize already-rendered chart (handles display:none → block sizing)
-  if (chartDiv && chartDiv.hasAttribute('data-rendered') && typeof Plotly !== 'undefined') {
-    Plotly.Plots.resize(chartDiv);
+  // Re-render chart after display:block (delay lets browser recalculate layout)
+  if (chartDiv && typeof Plotly !== 'undefined') {
+    setTimeout(() => {
+      const dataScript = panel.querySelector('script.qs-plotly-data');
+      if (dataScript) {
+        try {
+          const plotData = JSON.parse(dataScript.textContent);
+          Plotly.newPlot(chartDiv, plotData.data, plotData.layout, {
+            responsive: true,
+            displaylogo: false,
+            modeBarButtonsToRemove: ['select2d', 'lasso2d']
+          });
+          chartDiv.setAttribute('data-rendered', 'true');
+        } catch (e) { /* already handled */ }
+      }
+    }, 50);
   }
+}
+
+// Auto-render all Plotly charts that are currently visible (default Chart tab)
+function initPlotlyCharts() {
+  document.querySelectorAll('.qs-plotly-chart:not([data-rendered])').forEach(chartDiv => {
+    const panel = chartDiv.closest('.qs-panel');
+    // Only render if the panel is visible (display:block)
+    if (panel && panel.style.display !== 'none') {
+      const dataScript = panel.querySelector('script.qs-plotly-data');
+      if (dataScript && typeof Plotly !== 'undefined') {
+        try {
+          const plotData = JSON.parse(dataScript.textContent);
+          Plotly.newPlot(chartDiv, plotData.data, plotData.layout, {
+            responsive: true,
+            displaylogo: false,
+            modeBarButtonsToRemove: ['select2d', 'lasso2d']
+          });
+          chartDiv.setAttribute('data-rendered', 'true');
+        } catch (e) {
+          chartDiv.innerHTML = '<p style="color:#9ca3af;text-align:center;padding:2rem;">Could not render chart</p>';
+        }
+      }
+    }
+  });
 }
 // ===================== TAB SWITCHING & PLOTLY =====================
 
@@ -173,6 +210,8 @@ async function sendMessage() {
     // AI response is added to the ai tag so the div is populated with the aiResponse
 
     appendMessage("ai", aiResponse);
+    // Auto-render any Plotly charts in the new message
+    setTimeout(initPlotlyCharts, 50);
 
     // CATCH AND THROW ANY ERRORS THAT MAY COME UP IN A USER-FRIENDLY WAY
   } catch (err) {
@@ -208,6 +247,9 @@ async function loadChatHistory() {
         appendMessage("ai", msg.content);
       }
     });
+
+    // Auto-render any Plotly charts from history
+    setTimeout(initPlotlyCharts, 100);
 
   } catch (err) {
     console.log("Could not load chat history:", err);

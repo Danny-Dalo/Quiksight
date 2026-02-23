@@ -142,6 +142,7 @@ should_execute: true
 - Wrap risky operations in try-except with helpful error messages
 - Use print() with HTML for insights AFTER showing data
 - KEEP CODE UNDER 40 LINES. If analysis is complex, focus on the most important parts.
+- Tables you pass to display_table() are AUTOMATICALLY visualized with a chart by the system. Do NOT generate any Plotly/chart code or imports yourself. Just use display_table() with a well-structured DataFrame (categorical/label column first, numeric column(s) second).
 - AVOID complex nested f-strings with mixed quotes. Use simple string concatenation instead.
 - Use double quotes for HTML attributes and single quotes for Python strings, or vice versa—never mix.
 
