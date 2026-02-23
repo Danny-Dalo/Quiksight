@@ -1,7 +1,8 @@
 - Implement a safer way to sandbox environment variables than exec()
 - Better, more specific Error handling functions (network, request timeout, too many requests per time etc.)
 - Add clearer comments
-
+- replace excess CSS with tailwind
+- personally review code
 
 
 App Theme Colors
