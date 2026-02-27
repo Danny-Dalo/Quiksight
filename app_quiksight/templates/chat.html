@@ -10,13 +10,10 @@
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='img/Q-favicon.png') }}" />
 
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
   <style>
     body {
       font-family: 'Inter', sans-serif;
     }
-
-
 
     .user-msg {
       display: flex;
@@ -26,7 +23,6 @@
 
     .user-msg>div {
       background-color: rgb(243, 244, 246);
-      /* light gray */
       padding: 0.4rem 1rem;
       border-radius: 1.1rem;
       display: inline-block;
@@ -36,127 +32,7 @@
     .ai-msg {
       margin-top: 1.5rem;
       color: rgb(17, 24, 39);
-      font-size: 1rem
-    }
-
-    /* === Visualization Container === */
-    .qs-viz {
-      width: 100%;
-      max-width: 56rem;
-      margin: 12px auto 0;
-      background: #fff;
-      border: 1px solid #e5e7eb;
-      border-radius: 10px;
-      overflow: hidden;
-    }
-
-    .qs-tab-bar {
-      display: flex;
-      align-items: center;
-      gap: 2px;
-      padding: 6px 8px;
-      border-bottom: 1px solid #f3f4f6;
-      background: #fafafa;
-    }
-
-    .qs-tab {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 5px 12px;
-      border: none;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      color: #9ca3af;
-      background: transparent;
-      cursor: pointer;
-      transition: all 0.15s;
-      font-family: 'Inter', sans-serif;
-    }
-
-    .qs-tab:hover {
-      color: #4b5563;
-      background: #f3f4f6;
-    }
-
-    .qs-tab-active {
-      color: #1f2937;
-      background: #fff;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-    }
-
-    .qs-download-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      margin-left: auto;
-      padding: 4px 10px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 500;
-      color: #6b7280;
-      text-decoration: none;
-      transition: all 0.15s;
-    }
-
-    .qs-download-btn:hover {
-      background: #f3f4f6;
-      color: #374151;
-    }
-
-    /* === Minimalistic Table === */
-    .qs-table {
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      font-size: 13px;
-      color: #1f2937;
-    }
-
-    .qs-table thead th {
-      padding: 8px 12px;
-      text-align: left;
-      font-weight: 500;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #9ca3af;
-      border-bottom: 1.5px solid #e5e7eb;
-      white-space: nowrap;
-    }
-
-    .qs-table tbody td {
-      padding: 7px 12px;
-      border-bottom: 1px solid #f3f4f6;
-    }
-
-    .qs-table tbody tr:last-child td {
-      border-bottom: none;
-    }
-
-    .qs-table tbody tr:hover {
-      background: #fafafa;
-    }
-
-    .qs-na {
-      color: #d1d5db;
-      font-style: italic;
-    }
-
-    .qs-row-info {
-      text-align: center;
-      font-size: 11px;
-      color: #9ca3af;
-      padding: 6px 0 8px;
-    }
-
-    .qs-panel {
-      padding: 0;
-    }
-
-    .qs-plotly-chart {
-      padding: 8px 8px 0;
+      font-size: 1rem;
     }
   </style>
 
@@ -251,7 +127,6 @@
     <!-- Table Container -->
     <div class="overflow-x-auto">
       <table class="table table-zebra table-pin-rows text-sm">
-        <!-- <table class="table table-zebra table-pin-rows text-[13px]"> -->
 
         <thead class="bg-gray-50 text-gray-500 font-light text-sm tracking-wider">
 
@@ -288,9 +163,6 @@
 
 
 
-
-
-
   <!-- Chat Container -->
   <div class="w-full max-w-2xl flex flex-col gap-4 mt-6" id="chat-container">
 
@@ -300,10 +172,6 @@
     <div id="chat-messages" class="flex flex-col p-4 bg-base-100 overflow-y-auto max-h-[70vh]">
       <!-- User and AI chats appear here -->
     </div>
-
-
-
-
 
 
     <!-- Input Bar -->

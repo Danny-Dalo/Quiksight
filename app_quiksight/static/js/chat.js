@@ -1,97 +1,12 @@
 
 const urlParams = new URLSearchParams(window.location.search)
 const sessionID = urlParams.get("sid");
-// The browser is able to load up this sid query parameter because it was created in upload.py file, where the upload_file function returned a RedirectResponse to the url /chat?sid={session_id}. (session_id was uniquely made in the function as well)
-// The browser(javascript) gets the url set by the RedirectResponse by using the urlParams.get("sid") to get the sid. *in the world of urls, sid is NOT a string cuz it has ?sid
-// This happens immediately after the upload process is completed
 
 const chatMessages = document.getElementById("chat-messages");
 const messageInput = document.getElementById("message-input");
 const sendBtn = document.getElementById("send-btn");
 const textarea = document.getElementById('message-input')
 
-
-// ===================== TAB SWITCHING & PLOTLY =====================
-function qsTabSwitch(clickedTab, targetPanelId) {
-  const container = clickedTab.closest('.qs-viz');
-  if (!container) return;
-
-  // Deactivate all tabs and panels
-  container.querySelectorAll('.qs-tab').forEach(t => t.classList.remove('qs-tab-active'));
-  container.querySelectorAll('.qs-panel').forEach(p => {
-    p.style.display = 'none';
-    p.classList.remove('qs-panel-active');
-  });
-
-  // Activate clicked tab and target panel
-  clickedTab.classList.add('qs-tab-active');
-  const panel = document.getElementById(targetPanelId);
-  if (!panel) return;
-  panel.style.display = 'block';
-  panel.classList.add('qs-panel-active');
-
-  // Lazy-init Plotly chart on first view
-  const chartDiv = panel.querySelector('.qs-plotly-chart');
-  if (chartDiv && !chartDiv.hasAttribute('data-rendered')) {
-    const dataScript = panel.querySelector('script.qs-plotly-data');
-    if (dataScript && typeof Plotly !== 'undefined') {
-      try {
-        const plotData = JSON.parse(dataScript.textContent);
-        Plotly.newPlot(chartDiv, plotData.data, plotData.layout, {
-          responsive: true,
-          displaylogo: false,
-          modeBarButtonsToRemove: ['select2d', 'lasso2d']
-        });
-        chartDiv.setAttribute('data-rendered', 'true');
-      } catch (e) {
-        chartDiv.innerHTML = '<p style="color:#9ca3af;text-align:center;padding:2rem;">Could not render chart</p>';
-      }
-    }
-  }
-
-  // Re-render chart after display:block (delay lets browser recalculate layout)
-  if (chartDiv && typeof Plotly !== 'undefined') {
-    setTimeout(() => {
-      const dataScript = panel.querySelector('script.qs-plotly-data');
-      if (dataScript) {
-        try {
-          const plotData = JSON.parse(dataScript.textContent);
-          Plotly.newPlot(chartDiv, plotData.data, plotData.layout, {
-            responsive: true,
-            displaylogo: false,
-            modeBarButtonsToRemove: ['select2d', 'lasso2d']
-          });
-          chartDiv.setAttribute('data-rendered', 'true');
-        } catch (e) { /* already handled */ }
-      }
-    }, 50);
-  }
-}
-
-// Auto-render all Plotly charts that are currently visible (default Chart tab)
-function initPlotlyCharts() {
-  document.querySelectorAll('.qs-plotly-chart:not([data-rendered])').forEach(chartDiv => {
-    const panel = chartDiv.closest('.qs-panel');
-    // Only render if the panel is visible (display:block)
-    if (panel && panel.style.display !== 'none') {
-      const dataScript = panel.querySelector('script.qs-plotly-data');
-      if (dataScript && typeof Plotly !== 'undefined') {
-        try {
-          const plotData = JSON.parse(dataScript.textContent);
-          Plotly.newPlot(chartDiv, plotData.data, plotData.layout, {
-            responsive: true,
-            displaylogo: false,
-            modeBarButtonsToRemove: ['select2d', 'lasso2d']
-          });
-          chartDiv.setAttribute('data-rendered', 'true');
-        } catch (e) {
-          chartDiv.innerHTML = '<p style="color:#9ca3af;text-align:center;padding:2rem;">Could not render chart</p>';
-        }
-      }
-    }
-  });
-}
-// ===================== TAB SWITCHING & PLOTLY =====================
 
 // Removing this cancels the "Enter = Send" functionality
 textarea.addEventListener('input', () => {
@@ -155,10 +70,100 @@ function appendMessage(sender, content) {
   } else {
     wrapper.className = "ai-msg";
     wrapper.innerHTML = content;
+
+    // Style and wrap AI-generated tables
+    wrapper.querySelectorAll("table").forEach(table => {
+      // Apply Tailwind to the table itself
+      table.classList.add("w-full", "border-collapse", "text-sm", "overflow-hidden");
+      table.removeAttribute("border");
+
+      // Style thead
+      table.querySelectorAll("thead").forEach(thead => {
+        thead.classList.add("bg-gray-50");
+      });
+      table.querySelectorAll("thead th").forEach(th => {
+        th.classList.add("px-4", "py-2.5", "text-left", "font-semibold", "text-xs", "uppercase", "tracking-wider", "text-gray-900", "border-b-2", "border-gray-200");
+      });
+
+      // Style tbody rows
+      table.querySelectorAll("tbody tr").forEach((tr, i) => {
+        tr.classList.add("border-b", "border-gray-100", "transition-colors", "hover:bg-gray-100");
+        if (i % 2 === 1) tr.classList.add("bg-gray-50/50");
+      });
+      table.querySelectorAll("tbody td").forEach(td => {
+        td.classList.add("px-4", "py-2", "text-gray-700", "align-middle");
+      });
+
+      // Wrap in scrollable container with a toolbar
+      if (!table.closest(".table-wrap")) {
+        const wrap = document.createElement("div");
+        wrap.className = "table-wrap rounded-lg border border-gray-200 shadow-sm my-3 overflow-hidden";
+
+        // Toolbar row above the table
+        const toolbar = document.createElement("div");
+        toolbar.className = "flex justify-end px-2 py-1.5 bg-gray-50 border-b border-gray-200";
+
+        const dlBtn = document.createElement("button");
+        dlBtn.className = "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-gray-500 cursor-pointer transition-all hover:bg-gray-200 hover:text-gray-900";
+        dlBtn.title = "Download as CSV";
+        dlBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-3.5 h-3.5">
+  <path fill-rule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v11.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06l3.22 3.22V3a.75.75 0 0 1 .75-.75Zm-9 13.5a.75.75 0 0 1 .75.75v2.25a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5V16.5a.75.75 0 0 1 1.5 0v2.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V16.5a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd" />
+</svg>CSV`;
+        dlBtn.addEventListener("click", () => downloadTableCSV(table));
+
+        toolbar.appendChild(dlBtn);
+        wrap.appendChild(toolbar);
+
+        // Scrollable table area
+        const scrollArea = document.createElement("div");
+        scrollArea.className = "overflow-x-auto";
+
+        table.parentNode.insertBefore(wrap, table);
+        scrollArea.appendChild(table);
+        wrap.appendChild(scrollArea);
+      }
+    });
   }
 
   chatMessages.appendChild(wrapper);
   chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+
+// Convert an HTML table element to a CSV string
+function tableToCSV(table) {
+  const rows = [];
+
+  // Header row
+  const headers = [];
+  table.querySelectorAll("thead th").forEach(th => {
+    headers.push('"' + th.textContent.trim().replace(/"/g, '""') + '"');
+  });
+  if (headers.length) rows.push(headers.join(","));
+
+  // Data rows
+  table.querySelectorAll("tbody tr").forEach(tr => {
+    const cells = [];
+    tr.querySelectorAll("td").forEach(td => {
+      cells.push('"' + td.textContent.trim().replace(/"/g, '""') + '"');
+    });
+    rows.push(cells.join(","));
+  });
+
+  return rows.join("\n");
+}
+
+
+// Trigger a CSV file download from a table element
+function downloadTableCSV(table) {
+  const csv = tableToCSV(table);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "quiksight_export.csv";
+  link.click();
+  URL.revokeObjectURL(url);
 }
 // function to append messages to chat section
 
@@ -194,31 +199,14 @@ async function sendMessage() {
       return;
     }
 
-    let aiResponse = "";             // By default, the AI response is nothing
-    if (data.response.text) {
-      aiResponse += `
-          ${data.response.text}`;   // aiResponse becomes the text reponse that the AI returns
-    }
-
-    // // MONITORING THE EXECUTION RESULT PROVIDED
-    if (data.response.execution_results) {
-      aiResponse += `
-              ${data.response.execution_results}`;   // if the code has  results, it's added to the AI's response as well
-    }
-
-
-    // AI response is added to the ai tag so the div is populated with the aiResponse
-
+    // AI response is the text returned
+    const aiResponse = data.response.text || "No response received.";
     appendMessage("ai", aiResponse);
-    // Auto-render any Plotly charts in the new message
-    setTimeout(initPlotlyCharts, 50);
 
     // CATCH AND THROW ANY ERRORS THAT MAY COME UP IN A USER-FRIENDLY WAY
   } catch (err) {
     chatMessages.lastChild.remove();
     appendMessage("ai", `<span style="color:red;">Oops! Something went wrong. Please try sending your message again.</span>`);
-
-    //if an error occurs, it removes the last AI response and replaces it with the error message
   }
 }
 
@@ -236,6 +224,7 @@ async function loadChatHistory() {
     const res = await fetch(`/chat/history?sid=${sessionID}`);
     if (!res.ok) return;
 
+    // return if there has been no message sent
     const data = await res.json();
     if (!data.messages || data.messages.length === 0) return;
 
@@ -248,9 +237,6 @@ async function loadChatHistory() {
       }
     });
 
-    // Auto-render any Plotly charts from history
-    setTimeout(initPlotlyCharts, 100);
-
   } catch (err) {
     console.log("Could not load chat history:", err);
   }
@@ -259,37 +245,3 @@ async function loadChatHistory() {
 // Load history when page loads
 loadChatHistory();
 // ===================== LOAD CHAT HISTORY ON PAGE LOAD =====================
-
-
-
-
-// upload.py(Redirects browser to /chat?sid=<session_id>) --> chat.js(sessionID in the browser URL) --> chat.js(sends user message to the chat sid)
-//                                                        --> chat.py(Now has created sid from upload)
-
-
-// upload.py(Redirects browser to /chat?sid=<session_id>) --> Browser(automatically makes get request to /chat?sid=<session_id> from upload.py) → chat.py (GET request received) → chat.js(sends POST request, user messages to chat endpoint) → chat.py (POST many times)
-
-
-
-// FastAPI automatically does dependency injection / parameter parsing:
-// sees sid: str
-// looks for a query parameter named sid in the incoming request
-// finds ?sid=550e8400-...
-// → takes that value and injects it into the sid argument
-// So inside the function, sid already contains exactly the value that was in the URL.
-
-
-
-// User uploads file
-//     ↓
-// upload.py → RedirectResponse("/chat?sid=abc123")
-//     ↓
-// Browser receives 303 → automatically does:
-//     GET /chat?sid=abc123
-//     ↓
-// FastAPI router matches → calls chat_page(..., sid="abc123")
-//     ↓
-// sid is now usable inside the function
-
-
-// we don't actually pass any sid from anywhere it gets it from the redirect response, since the redirect response means the browser makes an automatic GET request?, since its a route, the sid is = to the sid in the url (?sid)
