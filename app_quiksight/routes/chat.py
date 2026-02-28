@@ -1,5 +1,3 @@
-
-
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -68,6 +66,40 @@ TOOLS = [
                 "required": ["code"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_chart",
+            "description": (
+                "Generate a Plotly chart to visually represent data findings. "
+                "Use this when a chart would genuinely help the user understand the answer — "
+                "rankings, trends over time, distributions, comparisons across categories. "
+                "Do NOT use for single numbers or simple facts that don't benefit from visualization. "
+                "Write Python code using plotly.express (imported as `px`) and `df`. "
+                "Assign your final figure to a variable called `fig`. "
+                "Returns Plotly JSON that will be rendered as an interactive chart."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": (
+                            "Python code using `df` (pandas DataFrame), `pd`, and `px` (plotly.express). "
+                            "Must assign the final Plotly figure to `fig`. "
+                            "Apply a clean layout: white background, subtle gridlines, clear axis labels, "
+                            "a descriptive title. Use `color_discrete_sequence` or `color` where helpful. "
+                            "Example:\n"
+                            "  result = df.groupby('region')['sales'].sum().reset_index()\n"
+                            "  fig = px.bar(result, x='region', y='sales', title='Sales by Region')\n"
+                            "  fig.update_layout(plot_bgcolor='white', paper_bgcolor='white')"
+                        )
+                    }
+                },
+                "required": ["code"]
+            }
+        }
     }
 ]
 
@@ -126,9 +158,41 @@ def execute_python(code: str, df: pd.DataFrame) -> str:
         return error_msg
 
 
-# ==============================================================================
-#  OPENROUTER CALL (single helper so the agentic loop stays clean)
-# ==============================================================================
+def execute_chart_code(code: str, df: pd.DataFrame) -> str:
+    """
+    Execute model-generated Plotly code. Returns Plotly figure as JSON string,
+    or an error message string if execution fails.
+    """
+    logger.info(f"\n   [TOOL] generate_chart called:\n{code}")
+
+    try:
+        import plotly.express as px
+        import plotly.graph_objects as go
+    except ImportError:
+        return "ERROR: plotly is not installed. Run: pip install plotly"
+
+    local_env = {
+        "df": df.copy(),
+        "pd": pd,
+        "px": px,
+        "go": go,
+        "fig": None,
+    }
+
+    try:
+        exec(code, local_env)
+        fig = local_env.get("fig")
+
+        if fig is None:
+            return "ERROR: Code did not assign a figure to `fig`."
+
+        # Return the Plotly figure as JSON — frontend renders it with Plotly.js
+        return fig.to_json()
+
+    except Exception as e:
+        error_msg = f"ChartError: {type(e).__name__}: {str(e)}"
+        logger.warning(f"   [TOOL] Chart generation failed: {error_msg}")
+        return error_msg
 
 def call_openrouter(messages: list) -> dict:
     response = requests.post(
@@ -158,11 +222,14 @@ def call_openrouter(messages: list) -> dict:
 #  final text response. The user only ever sees that final response.
 # ==============================================================================
 
-def run_agentic_loop(messages: list, df: pd.DataFrame, max_iterations: int = 5) -> str:
+def run_agentic_loop(messages: list, df: pd.DataFrame, max_iterations: int = 5) -> dict:
     """
     Loop: call model → if it requests a tool, execute it and feed result back → repeat.
     Stops when the model returns a plain text response (no tool calls).
+    Returns {"text": str, "charts": list[str]} where charts are Plotly JSON strings.
     """
+    charts = []  # Collect chart JSONs as we go
+
     for iteration in range(max_iterations):
         logger.info(f"\n   [LOOP] Iteration {iteration + 1}/{max_iterations}")
 
@@ -183,6 +250,14 @@ def run_agentic_loop(messages: list, df: pd.DataFrame, max_iterations: int = 5) 
 
                 if tool_name == "run_python":
                     tool_result = execute_python(tool_args["code"], df)
+                elif tool_name == "generate_chart":
+                    chart_json = execute_chart_code(tool_args["code"], df)
+                    # If it's valid JSON (not an error string), collect it
+                    if not chart_json.startswith(("ERROR:", "ChartError:")):
+                        charts.append(chart_json)
+                        tool_result = "Chart generated successfully. Place a <!-- chart --> comment in your HTML response where this chart should appear."
+                    else:
+                        tool_result = chart_json
                 else:
                     tool_result = f"Unknown tool: {tool_name}"
 
@@ -200,13 +275,13 @@ def run_agentic_loop(messages: list, df: pd.DataFrame, max_iterations: int = 5) 
         # --- Model is done, return final text response ---
         else:
             ai_text = message.get("content", "")
-            logger.info(f"   [LOOP] Final response ({len(ai_text)} chars)")
-            return ai_text
+            logger.info(f"   [LOOP] Final response ({len(ai_text)} chars), {len(charts)} charts collected")
+            return {"text": ai_text, "charts": charts}
 
     # Safety: if we hit max iterations, return whatever the last message content was
     logger.warning("   [LOOP] Max iterations reached")
     last = messages[-1]
-    return last.get("content", "I wasn't able to complete the analysis. Please try again.")
+    return {"text": last.get("content", "I wasn't able to complete the analysis. Please try again."), "charts": charts}
 
 
 # ==============================================================================
@@ -261,7 +336,10 @@ async def chat_history(sid: str):
         msg_data = json.loads(item)
         # Map "model" role to "ai" for the frontend
         role = "ai" if msg_data["role"] == "model" else msg_data["role"]
-        messages.append({"role": role, "content": msg_data["text"]})
+        entry = {"role": role, "content": msg_data["text"]}
+        if "charts" in msg_data:
+            entry["charts"] = msg_data["charts"]
+        messages.append(entry)
 
     return {"messages": messages}
 
@@ -306,11 +384,17 @@ async def chat_endpoint(req: ChatRequest, sid: str):
 {ai_context}
 
 ### Tool Usage Guidance
-You have access to a `run_python` tool that executes real Python code against the user's dataframe.
-Use it whenever a question requires actual computation — counts, averages, filtering, ranking, etc.
-Never guess numbers. Run the code and use the real output in your response.
-After getting tool results, respond naturally in HTML as if you simply knew the answer.
-Never show raw code, print statements, or tool output to the user.
+You have access to two tools:
+
+1. `run_python` — use for any question requiring real computation: counts, averages, filters, rankings, etc.
+2. `generate_chart` — use when a chart genuinely helps understand the answer (comparisons, trends, distributions, rankings). Do not use for single values or simple facts.
+
+Rules:
+- Never guess numbers. Run code and use real output.
+- After getting tool results, respond naturally in HTML as if you simply knew the answer.
+- Never show raw code, print statements, or tool output to the user.
+- When generate_chart succeeds, place the HTML comment <!-- chart --> in your response where the chart should appear. The system will inject the actual chart there automatically. Do NOT try to embed any JSON yourself.
+- If generate_chart returns an error, skip the chart silently and just provide the table/text answer.
 """
 
     messages = [{"role": "system", "content": system_content}]
@@ -322,7 +406,7 @@ Never show raw code, print statements, or tool output to the user.
 
     # 6. Run the agentic loop
     try:
-        ai_text = run_agentic_loop(messages, df)
+        loop_result = run_agentic_loop(messages, df)
     except requests.exceptions.Timeout:
         logger.error("   ✗ OpenRouter request timed out")
         raise HTTPException(status_code=504, detail="AI request timed out. Please try again.")
@@ -333,13 +417,16 @@ Never show raw code, print statements, or tool output to the user.
         logger.error(f"   ✗ Chat Error: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
-    # 7. Save and return AI response
-    save_chat_message(sid, "model", ai_text)
-    logger.info(f"   ✓ Response saved ({len(ai_text)} chars)")
+    ai_text = loop_result["text"]
+    charts = loop_result["charts"]
 
-    print(ai_text)
+    # 7. Save and return AI response
+    save_chat_message(sid, "model", ai_text, charts=charts)
+    logger.info(f"   ✓ Response saved ({len(ai_text)} chars, {len(charts)} charts)")
+
     return {
         "response": {
             "text": ai_text,
+            "charts": charts,
         }
     }
