@@ -72,10 +72,13 @@ def get_chat_history_openrouter(sid: str, limit: int = 20):
     return formatted_history
 
 
-def save_chat_message(sid: str, role: str, text: str):
+def save_chat_message(sid: str, role: str, text: str, charts: list = None):
     """Saves a single message to Redis history"""
     history_key = f"history:{sid}"
-    message_data = json.dumps({"role": role, "text": text})
+    msg = {"role": role, "text": text}
+    if charts:
+        msg["charts"] = charts
+    message_data = json.dumps(msg)
     
     """Push to the end of the list (Right Push) to maintain chat order"""
     redis_client.rpush(history_key, message_data)
