@@ -295,7 +295,7 @@ async function sendMessage() {
   appendMessage("user", msg);
   messageInput.value = "";    // User's message is tagged for user styling
 
-  appendMessage("ai", '<span class="loading loading-dots loading-md"></span>');      // AI thinking animation
+  appendMessage("ai", '<div class="qs-dots"><span></span><span></span><span></span></div>');      // AI thinking animation
 
   // The API call is made to the chat endpoint based on the session id. This call is made whenever a message is sent through the input
   try {

@@ -8,8 +8,8 @@
   <meta name="description"
     content="Upload any Excel or CSV file. Ask questions in plain English. Get tables, charts, and insights instantly — no formulas required." />
 
-  <!-- DaisyUI & Tailwind -->
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
+  <!-- Tailwind + app styles -->
+  <link rel="stylesheet" href="{{ url_for('static', path='css/chat.css') }}" />
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Fonts -->
@@ -311,7 +311,7 @@
       form.addEventListener('submit', () => {
         uploadButton.disabled = true;
         uploadButton.innerHTML = `
-          <span class="loading loading-spinner loading-sm mr-2"></span>
+          <span class="qs-spinner"></span>
           Processing Data...
         `;
       });

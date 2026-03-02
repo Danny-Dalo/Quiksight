@@ -1,34 +1,33 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Quiksight</title>
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.12/dist/full.min.css" rel="stylesheet" type="text/css" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='img/Q-favicon.png') }}" />
-
   <link rel="stylesheet" href="{{ url_for('static', path='css/chat.css') }}?v={{ cache_buster }}" />
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-
-
 </head>
 
-<body>
+<body class="font-['Inter'] m-0 p-0 h-screen overflow-hidden flex flex-col bg-[#f8f9fb]">
 
   <!-- ═══ Navbar ═══ -->
-  <nav class="qs-navbar">
-    <span class="logo">Quiksight</span>
+  <nav
+    class="shrink-0 bg-white/[.92] backdrop-blur-xl border-b border-gray-200 px-4 sm:px-6 h-14 flex items-center z-50">
+    <span class="font-bold text-lg text-cyan-900 tracking-tight">Quiksight</span>
   </nav>
 
   <!-- ═══ File Context Bar ═══ -->
-  <div class="qs-context-bar">
-    <!-- Summary line -->
+  <div class="shrink-0 bg-white border-b border-gray-200 z-40">
+
+    <!-- File Summary line -->
     <div
-      style="display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:0.6rem;padding:0.45rem 1.5rem;max-width:960px;margin:0 auto;font-size:0.82rem;color:#4b5563;white-space:nowrap;">
+      style="display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:0.6rem;padding:0.45rem 1rem;max-width:960px;margin:0 auto;font-size:0.82rem;color:#4b5563;white-space:nowrap;"
+      class="sm:px-6">
       <svg style="flex-shrink:0;width:18px;height:18px;color:#0d9488;" xmlns="http://www.w3.org/2000/svg" fill="none"
         viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round"
@@ -41,81 +40,74 @@
       <span style="flex-shrink:0;"><strong
           style="font-weight:600;color:#1f2937;">{{num_columns}}</strong>&nbsp;cols</span>
       <span style="color:#d1d5db;">·</span>
-      <span style="flex-shrink:0;">Uploaded {{upload_time}}</span>
+      <span style="flex-shrink:0;"><strong style="font-weight:600;color:#1f2937;">Size:
+        </strong>&nbsp;{{file_size}}</span>
 
       <div style="margin-left:auto;display:flex;gap:0.4rem;align-items:center;flex-shrink:0;">
-        <button class="qs-ctx-btn" id="toggle-meta" title="File details">
+        <button class="ctx-btn" id="toggle-meta" title="File details">
           Details
-          <svg class="qs-chevron" id="meta-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+          <svg class="chevron-icon" id="meta-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
             stroke-width="2" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
           </svg>
         </button>
-        <button class="qs-ctx-btn" id="toggle-preview" title="Preview data">
+        <button class="ctx-btn" id="toggle-preview" title="Preview data">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8"
-            stroke="currentColor" style="width:14px;height:14px;">
+            stroke="currentColor" class="w-3.5 h-3.5">
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M10.875 12c-.621 0-1.125.504-1.125 1.125M12 12c.621 0 1.125.504 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0-1.5v1.5m0 0c0 .621.504 1.125 1.125 1.125M12 13.125c0 .621-.504 1.125-1.125 1.125M12 13.125v1.5" />
           </svg>
-          Preview data
+          <span class="hidden sm:inline">Preview data</span>
+          <span class="sm:hidden">Data</span>
         </button>
       </div>
     </div>
 
     <!-- Expandable metadata -->
-    <div class="qs-meta-panel" id="meta-panel">
-      <div class="qs-meta-inner">
-        <div class="qs-meta-item">
-          <span class="label">Extension:</span>
-          <span class="value">{{file_extension}}</span>
+    <div class="collapsible-panel" id="meta-panel">
+      <div class="max-w-[820px] mx-auto px-4 sm:px-6 py-2.5 flex flex-wrap gap-x-8 gap-y-1 text-xs text-gray-500">
+        <div class="flex gap-1.5">
+          <span class="text-gray-400">Extension:</span>
+          <span class="font-medium text-gray-700">{{file_extension}}</span>
         </div>
-        <div class="qs-meta-item">
-          <span class="label">Size:</span>
-          <span class="value">{{file_size}}</span>
+        <div class="flex gap-1.5">
+          <span class="text-gray-400">Upload date:</span>
+          <span class="font-medium text-gray-700">{{upload_date}}</span>
         </div>
-        <div class="qs-meta-item">
-          <span class="label">Upload date:</span>
-          <span class="value">{{upload_date}}</span>
-        </div>
-        <div class="qs-meta-item">
-          <span class="label">Upload time:</span>
-          <span class="value">{{upload_time}}</span>
-        </div>
-        <div class="qs-meta-item">
-          <span class="label">Rows:</span>
-          <span class="value">{{num_rows}}</span>
-        </div>
-        <div class="qs-meta-item">
-          <span class="label">Columns:</span>
-          <span class="value">{{num_columns}}</span>
+        <div class="flex gap-1.5">
+          <span class="text-gray-400">Upload time:</span>
+          <span class="font-medium text-gray-700">{{upload_time}}</span>
         </div>
       </div>
     </div>
   </div>
 
   <!-- ═══ Collapsible Data Preview ═══ -->
-  <div class="qs-preview-panel" id="preview-panel">
-    <div class="qs-preview-inner">
-      <div class="preview-header">
-        <h3>Data Preview</h3>
-        <span>(first {{preview_rows|length}} of {{num_rows}} rows)</span>
+  <div class="collapsible-panel preview-panel" id="preview-panel">
+    <div class="max-w-[960px] mx-auto px-4 sm:px-6 py-2 pb-3">
+      <div class="flex items-center gap-2 mb-1">
+        <h3 class="text-[0.8rem] font-semibold text-gray-800 m-0">Data Preview</h3>
+        <span class="text-[0.72rem] text-gray-400">(first {{preview_rows|length}} of {{num_rows}} rows)</span>
       </div>
       <div class="overflow-x-auto">
-        <table class="qs-preview-table">
+        <table class="w-full border-collapse text-[0.78rem]">
           <thead>
             <tr>
               {% for col in columns %}
-              <th>{{ col }}</th>
+              <th
+                class="text-left px-2.5 py-1.5 font-semibold text-[0.72rem] uppercase tracking-wider text-gray-500 bg-gray-50 border-b-2 border-gray-200 sticky top-0 z-[1]">
+                {{ col }}</th>
               {% endfor %}
             </tr>
           </thead>
           <tbody>
             {% for row in preview_rows %}
-            <tr>
+            <tr class="hover:bg-gray-50">
               {% for col in columns %}
-              <td>
+              <td
+                class="px-2.5 py-1 text-gray-700 border-b border-gray-100 whitespace-nowrap max-w-[180px] overflow-hidden text-ellipsis">
                 {% if row[col] is none or row[col] != row[col] or row[col] == '' %}
-                <span style="color:#b0b5be;font-style:italic;">N/A</span>
+                <span class="text-gray-300 italic">N/A</span>
                 {% elif row[col] | string | length > 60 %}
                 <span title="{{ row[col] }}">{{ row[col] | string | truncate(55) }}</span>
                 {% else %}
@@ -132,23 +124,29 @@
   </div>
 
   <!-- ═══ Chat Thread ═══ -->
-  <div class="qs-chat-thread" id="chat-container">
-    <div class="qs-chat-inner" id="chat-messages">
+  <div class="chat-thread flex-1 overflow-y-auto pb-[100px]" id="chat-container">
+    <div class="max-w-[820px] mx-auto px-4 sm:px-6 pt-8 pb-4 flex flex-col" id="chat-messages">
       <!-- Empty state — hidden once messages appear -->
-      <div class="qs-empty-state" id="empty-state">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor">
+      <div class="flex flex-col items-center justify-center pt-16 pb-16 text-center text-gray-400" id="empty-state">
+        <svg class="w-12 h-12 mb-4 opacity-35" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+          stroke-width="1" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round"
             d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.282 48.282 0 0 0 5.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
         </svg>
-        <p>Ask anything about your data — summaries, trends, comparisons, or specific values.</p>
+        <p class="text-[0.95rem] max-w-[380px] leading-relaxed">Ask anything about your data — summaries, trends,
+          comparisons, or specific values.</p>
       </div>
     </div>
   </div>
 
   <!-- ═══ Fixed Input Bar ═══ -->
-  <div class="qs-input-bar">
-    <div class="qs-input-container">
-      <textarea id="message-input" rows="1" placeholder="Ask about your data…"></textarea>
+  <div class="fixed bottom-0 left-0 right-0 z-[45] px-3 sm:px-4 pb-3 pt-3 input-bar-gradient">
+    <div
+      class="input-container max-w-[820px] mx-auto bg-white border border-gray-200 rounded-3xl shadow-lg grid items-end px-4 py-1.5 transition-all"
+      style="grid-template-columns: 1fr auto;">
+      <textarea id="message-input" rows="1"
+        class="w-full resize-none border-0 outline-none py-2 font-['Inter'] text-[0.92rem] leading-relaxed text-gray-800 bg-transparent min-h-[24px] max-h-[10.5rem] overflow-y-hidden placeholder:text-gray-300"
+        placeholder="Ask about your data…"></textarea>
       <button id="send-btn" disabled class="send-btn" title="Send message">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           stroke-linecap="round" stroke-linejoin="round">
@@ -157,6 +155,7 @@
       </button>
     </div>
   </div>
+
 
   <!-- ═══ Scripts ═══ -->
   <script>
