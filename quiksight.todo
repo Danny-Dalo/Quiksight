@@ -3,6 +3,7 @@
 - Add clearer comments
 - replace excess CSS with tailwind
 - personally review code
+- refactor styling for chat.css and chat.js, possibly using a framework (like shadcn and react) in the future for cleaner code.
 
 
 App Theme Colors

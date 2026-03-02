@@ -3,6 +3,7 @@ const urlParams = new URLSearchParams(window.location.search)
 const sessionID = urlParams.get("sid");
 
 const chatMessages = document.getElementById("chat-messages");
+const chatScroller = document.getElementById("chat-container"); // the scrollable .qs-chat-thread
 const messageInput = document.getElementById("message-input");
 const sendBtn = document.getElementById("send-btn");
 const textarea = document.getElementById('message-input')
@@ -32,19 +33,9 @@ textarea.addEventListener('input', () => {
   // Whenever the user types into the textarea, it runs the resize function
   messageInput.addEventListener('input', () => {
     resize();
-    sendBtn.disabled = !messageInput.value.trim();
-    sendBtn.classList.toggle(
-      "bg-[#32a3a3]",
-      messageInput.value.trim()
-    );
-    sendBtn.classList.toggle(
-      "bg-gray-300",
-      !messageInput.value.trim()
-    );
-    sendBtn.classList.toggle(
-      "cursor-not-allowed",
-      !messageInput.value.trim()
-    );
+    const hasText = !!messageInput.value.trim();
+    sendBtn.disabled = !hasText;
+    sendBtn.classList.toggle("enabled", hasText);
 
   });
 
@@ -239,7 +230,7 @@ function appendMessage(sender, content, charts = []) {
   }
 
   chatMessages.appendChild(wrapper);
-  chatMessages.scrollTop = chatMessages.scrollHeight;
+  chatScroller.scrollTop = chatScroller.scrollHeight;
 }
 
 function makeTab(label, active) {
