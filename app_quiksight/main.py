@@ -51,16 +51,16 @@ async def home(request : Request):
 # Users don't have to wait for the render load up time
 
 
-@app.get("/ping")
-async def ping():
-    logger.info("Ping endpoint hit")
-    return {"status": "alive"}
+# @app.get("/ping")
+# async def ping():
+#     logger.info("Ping endpoint hit")
+#     return {"status": "alive"}
 
 
-@app.head("/ping")
-async def head_ping():
-    logger.info("Head ping endpoint hit")
-    return Response(status_code=200)
+# @app.head("/ping")
+# async def head_ping():
+#     logger.info("Head ping endpoint hit")
+#     return Response(status_code=200)
 
 # =====================================================
 
