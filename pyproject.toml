@@ -1,7 +1,7 @@
 [project]
 name = "quiksight"
 version = "0.1.0"
-description = "Add your description here"
+description = "dependencies for this project, not every library listed here is used, the were just installed together with others"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
