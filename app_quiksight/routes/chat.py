@@ -380,22 +380,22 @@ async def chat_endpoint(req: ChatRequest, sid: str):
     # 4. Build messages
     system_content = f"""{SYSTEM_INSTRUCTION}
 
-### Context of the User's Data
-{ai_context}
+    ### Context of the User's Data
+    {ai_context}
 
-### Tool Usage Guidance
-You have access to two tools:
+    ### Tool Usage Guidance
+    You have access to two tools:
 
-1. `run_python` — use for any question requiring real computation: counts, averages, filters, rankings, etc.
-2. `generate_chart` — use when a chart genuinely helps understand the answer (comparisons, trends, distributions, rankings). Do not use for single values or simple facts.
+    1. `run_python` — use for any question requiring real computation: counts, averages, filters, rankings, etc.
+    2. `generate_chart` — use when a chart genuinely helps understand the answer (comparisons, trends, distributions, rankings). Do not use for single values or simple facts.
 
-Rules:
-- Never guess numbers. Run code and use real output.
-- After getting tool results, respond naturally in HTML as if you simply knew the answer.
-- Never show raw code, print statements, or tool output to the user.
-- When generate_chart succeeds, place the HTML comment <!-- chart --> in your response where the chart should appear. The system will inject the actual chart there automatically. Do NOT try to embed any JSON yourself.
-- If generate_chart returns an error, skip the chart silently and just provide the table/text answer.
-"""
+    Rules:
+    - Never guess numbers. Run code and use real output.
+    - After getting tool results, respond naturally in HTML as if you simply knew the answer.
+    - Never show raw code, print statements, or tool output to the user.
+    - When generate_chart succeeds, place the HTML comment <!-- chart --> in your response where the chart should appear. The system will inject the actual chart there automatically. Do NOT try to embed any JSON yourself.
+    - If generate_chart returns an error, skip the chart silently and just provide the table/text answer.
+    """
 
     messages = [{"role": "system", "content": system_content}]
     messages.extend(past_history)
