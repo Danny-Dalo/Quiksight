@@ -57,10 +57,10 @@ async def ping():
     return {"status": "alive"}
 
 
-# @app.head("/ping")
-# async def head_ping():
-#     logger.info("Head ping endpoint hit")
-#     return Response(status_code=200)
+@app.head("/ping")
+async def head_ping():
+    logger.info("Head ping endpoint hit")
+    return Response(status_code=200)
 
 # =====================================================
 
