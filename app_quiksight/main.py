@@ -72,3 +72,10 @@ app.include_router(chat.router, tags=["chat"])
 
 
 # run command: uv run uvicorn app_quiksight.main:app --reload
+app.include_router(upload.router, tags=["upload"])
+
+
+app.include_router(chat.router, tags=["chat"])
+
+
+# run command: uv run uvicorn app_quiksight.main:app --reload
