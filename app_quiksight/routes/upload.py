@@ -257,7 +257,7 @@ def read_file(file: UploadFile) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
                 return df
             except UnicodeDecodeError:
                 continue
-        raise ValueError("Unable to decode CSV with supported encodings.")
+        raise ValueError("We couldn't read your CSV file. Please make sure it's a valid CSV with standard encoding.")
 
     # Excel Handling
     file.file.seek(0)
@@ -265,11 +265,12 @@ def read_file(file: UploadFile) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
     try:
         xls = pd.ExcelFile(io.BytesIO(raw))
     except Exception as e:
-        raise ValueError(f"Failed to read Excel file: {e}")
+        logger.error(f"Excel read failed: {e}")
+        raise ValueError("We couldn't read your Excel file. Please make sure it's a valid .xlsx or .xls file.")
 
     sheets = xls.sheet_names
-    if not sheets: raise ValueError("No sheets found in Excel file.")
-    if len(sheets) != 1: raise ValueError("Only single-sheet Excel files are supported at this time.")
+    if not sheets: raise ValueError("Your Excel file doesn't appear to contain any data sheets.")
+    if len(sheets) != 1: raise ValueError("Only single-sheet Excel files are supported right now. Please upload a file with one sheet.")
 
     return pd.read_excel(xls, sheet_name=sheets[0])
 
@@ -318,7 +319,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         logger.info("\n Step [3/3] Creating Session...")
         session_id = str(uuid.uuid4())
         
-        """Calculating fiile size(in KB and MB)"""
+        """Calculating file size(in KB and MB)"""
         size_kb = file.size / 1024
         file_size = f"{size_kb:.2f} KB" if size_kb < 1024 else f"{size_kb/1024:.2f} MB"
         current_timestamp = datetime.datetime.now()
@@ -369,7 +370,16 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         
         return RedirectResponse(url=f"/chat?sid={session_id}", status_code=303)
 
-    except Exception as e:
+    except ValueError as e:
+        # ValueError = validation errors we raised intentionally (already user-friendly)
         log_section("                UPLOAD FAILED      ", "═")
-        logger.error(f"   Error: {str(e)}")
+        logger.error(f"   Validation Error: {str(e)}")
         return templates.TemplateResponse("home.html", {"request": request, "error": str(e)})
+    except Exception as e:
+        # Unexpected errors — don't leak technical details
+        log_section("                UPLOAD FAILED      ", "═")
+        logger.error(f"   Unexpected Error: {str(e)}")
+        return templates.TemplateResponse("home.html", {
+            "request": request,
+            "error": "Something went wrong while processing your file. Please try again or use a different file."
+        })

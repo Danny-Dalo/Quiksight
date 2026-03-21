@@ -288,6 +288,51 @@ function downloadTableCSV(table) {
 
 
 
+// User-friendly error messages by HTTP status code
+const ERROR_MESSAGES = {
+  404: "This conversation could not be found. Your session may have expired — please try uploading your file again.",
+  500: "Something went wrong on our end. Please try sending your message again.",
+  502: "We're having trouble connecting to the AI service. Please try again in a moment.",
+  504: "The AI is taking too long to respond. Please try sending your message again.",
+  413: "Your request was too large to process. Try asking a simpler question.",
+  429: "Too many requests — please wait a moment and try again.",
+};
+
+// Patterns that indicate leaked technical errors in AI responses
+const TECHNICAL_PATTERNS = [
+  /ExecutionError:\s/i,
+  /ChartError:\s/i,
+  /Traceback \(most recent call last\)/i,
+  /\bFile ".*", line \d+/i,
+  /\bNameError:/i,
+  /\bTypeError:/i,
+  /\bValueError:/i,
+  /\bKeyError:/i,
+  /\bIndexError:/i,
+  /\bAttributeError:/i,
+  /\bSyntaxError:/i,
+  /\bModuleNotFoundError:/i,
+  /\bImportError:/i,
+  /\bRuntimeError:/i,
+  /\bZeroDivisionError:/i,
+  /\[INTERNAL TOOL ERROR/i,
+];
+
+/**
+ * Checks if the AI response text contains leaked technical error patterns.
+ * Returns a clean, friendly fallback message if it does, otherwise returns the original text.
+ */
+function sanitizeAIResponse(text) {
+  if (!text || typeof text !== "string") return text;
+
+  for (const pattern of TECHNICAL_PATTERNS) {
+    if (pattern.test(text)) {
+      return "<p>I ran into a hiccup while processing your request. Could you try rephrasing your question or asking again?</p>";
+    }
+  }
+  return text;
+}
+
 async function sendMessage() {
   const msg = messageInput.value.trim();
   if (!msg) return;         // Get the user's message, if there's no message, then nothing happens
@@ -308,7 +353,6 @@ async function sendMessage() {
       })
     });
 
-    const data = await res.json();    // Saves the AI response to a variable called 'data'
     chatMessages.lastChild.remove(); // Remove "Thinking..."
 
     // Check if the response indicates an error (e.g., 404, 500, etc.)
@@ -318,15 +362,18 @@ async function sendMessage() {
       return;
     }
 
+    const data = await res.json();    // Saves the AI response to a variable called 'data'
+
     // AI response is the text returned, with charts from the backend
-    const aiResponse = data.response.text || "No response received.";
-    const charts = data.response.charts || [];
+    const rawResponse = data.response?.text || "No response received.";
+    const aiResponse = sanitizeAIResponse(rawResponse);
+    const charts = data.response?.charts || [];
     appendMessage("ai", aiResponse, charts);
 
     // CATCH AND THROW ANY ERRORS THAT MAY COME UP IN A USER-FRIENDLY WAY
   } catch (err) {
     chatMessages.lastChild.remove();
-    appendMessage("ai", `<span style="color:red;">Oops! Something went wrong. Please try sending your message again.</span>`);
+    appendMessage("ai", `<p class="text-red-500">Oops! Something went wrong. Please try sending your message again.</p>`);
   }
 }
 

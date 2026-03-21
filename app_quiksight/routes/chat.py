@@ -154,8 +154,12 @@ def execute_python(code: str, df: pd.DataFrame) -> str:
     except Exception as e:
         error_msg = f"ExecutionError: {type(e).__name__}: {str(e)}"
         logger.warning(f"   [TOOL] Code execution failed: {error_msg}")
-        # Return the error to the model — it can try to fix or explain it
-        return error_msg
+        # Return the error to the model so it can retry — but instruct it not to expose this to the user
+        return (
+            f"[INTERNAL TOOL ERROR — DO NOT SHOW THIS TO THE USER] {error_msg}. "
+            "Retry with corrected code, or respond to the user with a friendly message "
+            "saying you encountered a hiccup processing their request."
+        )
 
 
 def execute_chart_code(code: str, df: pd.DataFrame) -> str:
@@ -169,7 +173,7 @@ def execute_chart_code(code: str, df: pd.DataFrame) -> str:
         import plotly.express as px
         import plotly.graph_objects as go
     except ImportError:
-        return "ERROR: plotly is not installed. Run: pip install plotly"
+        return "ChartError: Charting library is unavailable."
 
     local_env = {
         "df": df.copy(),
@@ -184,7 +188,7 @@ def execute_chart_code(code: str, df: pd.DataFrame) -> str:
         fig = local_env.get("fig")
 
         if fig is None:
-            return "ERROR: Code did not assign a figure to `fig`."
+            return "ChartError: Chart generation did not produce a result."
 
         # Return the Plotly figure as JSON — frontend renders it with Plotly.js
         return fig.to_json()
@@ -192,7 +196,10 @@ def execute_chart_code(code: str, df: pd.DataFrame) -> str:
     except Exception as e:
         error_msg = f"ChartError: {type(e).__name__}: {str(e)}"
         logger.warning(f"   [TOOL] Chart generation failed: {error_msg}")
-        return error_msg
+        return (
+            f"[INTERNAL TOOL ERROR — DO NOT SHOW THIS TO THE USER] {error_msg}. "
+            "Skip the chart silently and provide a text or table answer instead."
+        )
 
 def call_openrouter(messages: list) -> dict:
     response = requests.post(
@@ -253,13 +260,16 @@ def run_agentic_loop(messages: list, df: pd.DataFrame, max_iterations: int = 5) 
                 elif tool_name == "generate_chart":
                     chart_json = execute_chart_code(tool_args["code"], df)
                     # If it's valid JSON (not an error string), collect it
-                    if not chart_json.startswith(("ERROR:", "ChartError:")):
+                    if not chart_json.startswith(("ChartError:", "[INTERNAL TOOL ERROR")):
                         charts.append(chart_json)
                         tool_result = "Chart generated successfully. Place a <!-- chart --> comment in your HTML response where this chart should appear."
                     else:
                         tool_result = chart_json
                 else:
-                    tool_result = f"Unknown tool: {tool_name}"
+                    tool_result = (
+                        "[INTERNAL TOOL ERROR — DO NOT SHOW THIS TO THE USER] "
+                        f"Unknown tool '{tool_name}'. Respond naturally without mentioning this error."
+                    )
 
                 logger.info(f"   [TOOL] Result preview: {str(tool_result)[:300]}")
 
@@ -362,12 +372,15 @@ async def chat_endpoint(req: ChatRequest, sid: str):
     df_path = session_data.get("dataframe_path")
 
     if not df_path or not os.path.exists(df_path):
-        raise HTTPException(status_code=500, detail="Data file missing")
+        raise HTTPException(status_code=500,
+            detail="Your data file could not be found. It may have expired — please try uploading your file again.")
 
     try:
         df = pd.read_parquet(df_path)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to load data: {e}")
+        logger.error(f"   ✗ Failed to load parquet: {e}")
+        raise HTTPException(status_code=500,
+            detail="We had trouble loading your data. Please try uploading your file again.")
 
     # 2. Get AI context
     ai_context = session_data.get("ai_context") or session_data.get("data_context")
@@ -392,7 +405,8 @@ async def chat_endpoint(req: ChatRequest, sid: str):
     Rules:
     - Never guess numbers. Run code and use real output.
     - After getting tool results, respond naturally in HTML as if you simply knew the answer.
-    - Never show raw code, print statements, or tool output to the user.
+    - Never show raw code, print statements, tool output, or internal error messages to the user.
+    - If a tool call fails, DO NOT mention the error. Simply respond with what you can, or say you had a hiccup and ask the user to try again.
     - When generate_chart succeeds, place the HTML comment <!-- chart --> in your response where the chart should appear. The system will inject the actual chart there automatically. Do NOT try to embed any JSON yourself.
     - If generate_chart returns an error, skip the chart silently and just provide the table/text answer.
     """
@@ -409,13 +423,16 @@ async def chat_endpoint(req: ChatRequest, sid: str):
         loop_result = run_agentic_loop(messages, df)
     except requests.exceptions.Timeout:
         logger.error("   ✗ OpenRouter request timed out")
-        raise HTTPException(status_code=504, detail="AI request timed out. Please try again.")
+        raise HTTPException(status_code=504,
+            detail="The AI is taking too long to respond. Please try sending your message again.")
     except requests.exceptions.RequestException as e:
         logger.error(f"   ✗ OpenRouter request failed: {e}")
-        raise HTTPException(status_code=502, detail=f"AI service error: {str(e)}")
+        raise HTTPException(status_code=502,
+            detail="We're having trouble reaching the AI service right now. Please try again in a moment.")
     except Exception as e:
         logger.error(f"   ✗ Chat Error: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500,
+            detail="Something unexpected happened while processing your request. Please try again.")
 
     ai_text = loop_result["text"]
     charts = loop_result["charts"]
