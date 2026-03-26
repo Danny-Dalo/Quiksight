@@ -85,4 +85,4 @@ def save_chat_message(sid: str, role: str, text: str, charts: list = None):
     
     """Removes oldest items beyond limit"""
     redis_client.ltrim(history_key, -60, -1)
-    redis_client.expire(history_key, 3600)
+    redis_client.expire(history_key, 3600 * 24 * 7)  # 7 day expiry
