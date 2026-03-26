@@ -1,6 +1,7 @@
 - Implement a safer way to sandbox environment variables than exec()
 - Better, more specific Error handling functions (network, request timeout, too many requests per time etc.)
 - Add clearer comments
+- Make it more responsive on mobile screenview
 - replace excess CSS with tailwind
 - personally review code
 - refactor styling for chat.css and chat.js, possibly using a framework (like shadcn and react) in the future for cleaner code.
@@ -14,3 +15,4 @@ Accent: Indigo or Teal (#6366F1 / #14B8A6)
 Background/Neutral: White, light gray (#F9FAFB / #E5E7EB)
 
 Text: Dark gray (#111827)
+
