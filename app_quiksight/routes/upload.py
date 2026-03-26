@@ -1,6 +1,7 @@
-from fastapi import APIRouter, File, UploadFile, Request
+from fastapi import APIRouter, File, UploadFile, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from app_quiksight.storage.auth_deps import get_optional_user
 import os
 import pandas as pd
 import io
@@ -189,19 +190,30 @@ def _build_context_for_df(df: pd.DataFrame, filename: str, sample_size : int) ->
         missing_pct = df[col].isna().mean() * 100
         unique_vals = df[col].nunique(dropna=True)
 
-        if pd.api.types.is_numeric_dtype(df[col]):
+        is_bool = pd.api.types.is_bool_dtype(df[col])
+        is_numeric = pd.api.types.is_numeric_dtype(df[col]) and not is_bool
+
+        if is_numeric:
             desc = df[col].describe(percentiles=[.25, .5, .75])
+            min_val = desc.get('min', float('nan'))
+            max_val = desc.get('max', float('nan'))
+            mean_val = desc.get('mean', float('nan'))
+            
+            min_str = f"{min_val:.4g}" if pd.notna(min_val) else "NaN"
+            max_str = f"{max_val:.4g}" if pd.notna(max_val) else "NaN"
+            mean_str = f"{mean_val:.4g}" if pd.notna(mean_val) else "NaN"
+            
             col_summary = (
                 f"{col} (num) — {unique_vals} unique, "
-                f"range: {desc['min']:.4g}–{desc['max']:.4g}, "
-                f"mean: {desc['mean']:.4g}, missing: {missing_pct:.0f}%"
+                f"range: {min_str}–{max_str}, "
+                f"mean: {mean_str}, missing: {missing_pct:.0f}%"
             )
         elif pd.api.types.is_datetime64_any_dtype(df[col]):
             col_summary = (
                 f"{col} (date) — {unique_vals} unique, "
                 f"range: {df[col].min()} → {df[col].max()}, missing: {missing_pct:.0f}%"
             )
-        else:  # categorical or text
+        else:  # categorical, boolean, or text
             top_vals = list(df[col].value_counts(dropna=True).head(3).index)
             top_str = ", ".join(str(v)[:20] for v in top_vals) 
             col_summary = (
@@ -270,9 +282,12 @@ def read_file(file: UploadFile) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
 
     sheets = xls.sheet_names
     if not sheets: raise ValueError("Your Excel file doesn't appear to contain any data sheets.")
-    if len(sheets) != 1: raise ValueError("Only single-sheet Excel files are supported right now. Please upload a file with one sheet.")
-
-    return pd.read_excel(xls, sheet_name=sheets[0])
+    
+    # If multiple sheets, return dictionary of dataframes
+    if len(sheets) == 1:
+        return pd.read_excel(xls, sheet_name=sheets[0])
+    else:
+        return pd.read_excel(xls, sheet_name=None)  # Returns Dict[str, DataFrame]
 
 
 
@@ -281,88 +296,111 @@ def read_file(file: UploadFile) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
 # ==============================================================================
 
 @router.post("/upload", response_class=HTMLResponse)
-async def upload_file(request: Request, file: UploadFile = File(...)):
+async def upload_file(request: Request, files: list[UploadFile] = File(...), user = Depends(get_optional_user)):
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+        
     log_section("       ==NEW FILE UPLOAD REQUEST==       ")
 
-    """Check if a file is actually uploaded when request is made"""
-    if not file or file.filename == "":
+    """Check if files are actually uploaded when request is made"""
+    if not files or all(f.filename == "" for f in files):
         return templates.TemplateResponse("home.html", {"request": request, "error": "Please upload a file"})
     
-    # """ Check file size (Maximum 30MB). Replaced with logic in main.py"""
-    # file_size_bytes = file.size
-    # logger.info(f"   Size: {file_size_bytes / 1024:.2f} KB ({file_size_bytes / (1024*1024):.2f} MB)")
-
-    # if file_size_bytes > MAX_UPLOAD_SIZE:
-    #     logger.warning(f" Rejected: File size exceeds 30MB limit")
-    #     return templates.TemplateResponse("home.html", {"request": request,"error": "File too large. Maximum size allowed is 30MB."})
-    
-    """ Checks if the uploaded file's extension is allowed """
-    _, ext = os.path.splitext(file.filename.lower())
-    if ext not in ALLOWED_EXTENSIONS:
-        return templates.TemplateResponse("home.html", {"request": request, "error": "Invalid file type"})
-    
-    
+    """ Checks if the uploaded files extensions are allowed """
+    for file in files:
+        if file.filename:
+            _, ext = os.path.splitext(file.filename.lower())
+            if ext not in ALLOWED_EXTENSIONS:
+                return templates.TemplateResponse("home.html", {"request": request, "error": f"Invalid file type for {file.filename}"})
 
     try:
         log_section("    PROCESSING PIPELINE    ", "─")
         pipeline_start = time.time()    # tracking how fast it takes to complete processes
         
-        """Read and validate the file"""
-        logger.info("\n Step [1/3]  Reading file...")
-        df = read_file(file)
+        all_dfs = {}
+        total_size_bytes = 0
+        file_names = []
+        file_exts = set()
+        
+        for file in files:
+            if not file.filename: continue
+            
+            logger.info(f"\n Step [1/3]  Reading file: {file.filename}...")
+            df_or_dict = read_file(file)
+            
+            file_names.append(file.filename)
+            total_size_bytes += file.size
+            _, ext = os.path.splitext(file.filename.lower())
+            file_exts.add(ext)
+
+            if isinstance(df_or_dict, pd.DataFrame):
+                all_dfs[file.filename] = df_or_dict
+            else:
+                for sheet_name, sheet_df in df_or_dict.items():
+                    all_dfs[f"{file.filename} - {sheet_name}"] = sheet_df
 
         """Summarize data and generate data context for the AI model"""
         logger.info("\n Step [2/3]  Generating AI Context...")
-        data_context = make_ai_context(df, file.filename)
-        
+        # Make a combined context
+        contexts = []
+        for name, df in all_dfs.items():
+            contexts.append(f"📁 Dataset: {name}\n" + make_ai_context(df, name))
+        data_context = "\n\n---\n\n".join(contexts)
+
         """Create a session ID for each uploaded file for reference"""
         logger.info("\n Step [3/3] Creating Session...")
         session_id = str(uuid.uuid4())
         
         """Calculating file size(in KB and MB)"""
-        size_kb = file.size / 1024
+        size_kb = total_size_bytes / 1024
         file_size = f"{size_kb:.2f} KB" if size_kb < 1024 else f"{size_kb/1024:.2f} MB"
         current_timestamp = datetime.datetime.now()
 
-        # Sanitize DF for Parquet (Convert Objects to Strings to avoid errors)
-        for col in df.columns:
-            if df[col].dtype == 'object':
-                df[col] = df[col].astype(str)
-
-        # Save Parquet
-        dataframe_path = f"{DATA_DIR}/{session_id}.parquet"
-        df.to_parquet(dataframe_path, engine="pyarrow")
-
-        # Prepare Redis Payload
-        # We ensure preview rows are strings to avoid JSON errors with timestamps
-        preview_data = df.head(5).astype(str).to_dict(orient="records")
-        rows = len(df)
+        # Sanitize DFs and Save Parquet
+        dataframe_paths = {}
+        preview_data = {}
+        columns_dict = {}
+        total_rows = 0
         
+        # Save Parquet for each dataframe
+        for name, df in all_dfs.items():
+            for col in df.columns:
+                if df[col].dtype == 'object':
+                    df[col] = df[col].astype(str)
+            
+            # Safe filename for parquet
+            safe_name = "".join(c if c.isalnum() else "_" for c in name)
+            df_path = f"{DATA_DIR}/{session_id}_{safe_name}.parquet"
+            df.to_parquet(df_path, engine="pyarrow")
+            
+            dataframe_paths[name] = df_path
+            preview_data[name] = df.head(5).astype(str).to_dict(orient="records")
+            columns_dict[name] = list(df.columns)
+            total_rows += len(df)
+
         session_data = {
-            "file_name": file.filename,
+            "file_name": ", ".join(file_names),
             "file_size": file_size,
-            "file_extension": os.path.splitext(file.filename)[1],
+            "file_extension": ", ".join(file_exts),
             "upload_date": str(current_timestamp.strftime("%Y-%m-%d")),
             "upload_time": str(current_timestamp.strftime("%I:%M %p")),
-            "columns": json.dumps(list(df.columns)),
-            "num_rows" : rows,
+            "columns": json.dumps(columns_dict),
+            "num_rows": total_rows,
             "preview_rows": json.dumps(preview_data),
-            "dataframe_path": dataframe_path,
-            "data_context": data_context
+            "dataframe_paths": json.dumps(dataframe_paths),
+            "data_context": data_context,
+            "user_id": user.id,
         }
 
-        """ Redis stores everything necessary to resume the chat session later as long as it has not expired
-            redis_key: Unique, used to match session activity (chat_history, file_info, data context) in redis, 
-            made from randomly generated session_id
-        """
+        """ Redis stores everything necessary to resume the chat session later as long as it has not expired"""
         redis_key = f"session:{session_id}"
-        """.hset: sets key, value pairs in a redis hash
-            key --> session:{session_id}
-            mapping(takes in a dictionary) --> session_data
-        """
         redis_client.hset(redis_key, mapping=session_data)
-        """Sets session expiry time of redis key(along with its values)"""
-        redis_client.expire(redis_key, 3600) # 1 Hour Expiry
+        redis_client.expire(redis_key, 3600 * 24 * 7)  # 7 day expiry for session persistence
+
+        # Track this session under the user's session list
+        user_sessions_key = f"user_sessions:{user.id}"
+        redis_client.sadd(user_sessions_key, session_id)
+        redis_client.expire(user_sessions_key, 3600 * 24 * 30)  # 30 day expiry for user session index
 
         total_time = time.time() - pipeline_start   # How long the whole upload process took
         log_section("               UPLOAD COMPLETE     ", "─")
@@ -371,12 +409,12 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         return RedirectResponse(url=f"/chat?sid={session_id}", status_code=303)
 
     except ValueError as e:
-        # ValueError = validation errors we raised intentionally (already user-friendly)
+        # ValueError for failed upload
         log_section("                UPLOAD FAILED      ", "═")
         logger.error(f"   Validation Error: {str(e)}")
         return templates.TemplateResponse("home.html", {"request": request, "error": str(e)})
     except Exception as e:
-        # Unexpected errors — don't leak technical details
+        # Unexpected errors so it doesn't leak technical details on frontend
         log_section("                UPLOAD FAILED      ", "═")
         logger.error(f"   Unexpected Error: {str(e)}")
         return templates.TemplateResponse("home.html", {
