@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quiksight</title>
+  <title>DataChat</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='img/Q-favicon.png') }}" />
   <link rel="stylesheet" href="{{ url_for('static', path='css/chat.css') }}?v={{ cache_buster }}" />
@@ -17,9 +17,62 @@
 
   <!-- ═══ Navbar ═══ -->
   <nav
-    class="shrink-0 bg-white/[.92] backdrop-blur-xl border-b border-gray-200 px-4 sm:px-6 h-14 flex items-center z-50">
-    <span class="font-bold text-lg text-cyan-900 tracking-tight">Quiksight</span>
+    class="shrink-0 bg-white/[.92] backdrop-blur-xl border-b border-gray-200 px-4 sm:px-6 h-14 flex items-center justify-between z-[50] relative">
+    <div class="flex items-center gap-3">
+      <button id="sidebar-toggle" class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors" title="View past sessions">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
+        </svg>
+      </button>
+      <a href="/" class="font-bold text-lg text-cyan-900 tracking-tight">DataChat</a>
+    </div>
+    <div class="flex items-center gap-4">
+      {% if user %}
+        <span class="text-xs font-medium text-slate-700">Hello, 
+        {% if user.user_metadata %}
+          {{ user.user_metadata.full_name or user.user_metadata.name or user.email }}
+        {% else %}
+          User
+        {% endif %}
+        </span>
+        <a href="/logout" class="text-xs font-medium text-red-600 hover:text-red-700 transition">Logout</a>
+      {% endif %}
+    </div>
   </nav>
+
+  <!-- ═══ Sessions Sidebar ═══ -->
+  <div id="sessions-sidebar" class="fixed inset-y-0 left-0 w-80 bg-white border-r border-gray-200 shadow-2xl transform -translate-x-full transition-transform duration-300 z-[60] flex flex-col">
+    <div class="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
+      <h2 class="font-semibold text-gray-800 text-[0.95rem]">Past Sessions</h2>
+      <button id="close-sidebar" class="p-1.5 rounded-md text-gray-400 hover:bg-gray-200 hover:text-gray-700 transition">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+          <path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clip-rule="evenodd" />
+        </svg>
+      </button>
+    </div>
+    
+    <div class="p-3 border-b border-gray-100 flex gap-2">
+      <a href="/" class="w-full flex items-center justify-center gap-2 py-2 px-3 bg-cyan-50 text-cyan-800 border border-cyan-200 hover:bg-cyan-100 rounded-lg text-sm font-medium transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+        New Upload
+      </a>
+    </div>
+
+    <div id="sessions-list" class="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
+      <!-- Session items will be dynamically placed here -->
+      <div id="sessions-loading" class="flex flex-col items-center justify-center py-10 text-sm text-gray-400 gap-3 hidden">
+        <span class="qs-spinner !border-gray-300 !border-t-gray-500"></span> Loading sessions...
+      </div>
+      <div id="sessions-empty" class="text-sm text-gray-500 py-6 text-center hidden">
+        No previous sessions found.
+      </div>
+    </div>
+  </div>
+  
+  <!-- Overlay for sidebar -->
+  <div id="sidebar-overlay" class="fixed inset-0 bg-gray-900/30 backdrop-blur-[2px] z-[55] hidden opacity-0 transition-opacity duration-300"></div>
 
   <!-- ═══ File Context Bar ═══ -->
   <div class="shrink-0 bg-white border-b border-gray-200 z-40">

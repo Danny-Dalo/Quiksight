@@ -288,7 +288,7 @@ function downloadTableCSV(table) {
 
 
 
-// User-friendly error messages by HTTP status code
+// Adding User-friendly error messages by HTTP status code
 const ERROR_MESSAGES = {
   404: "This conversation could not be found. Your session may have expired — please try uploading your file again.",
   500: "Something went wrong on our end. Please try sending your message again.",
@@ -298,7 +298,7 @@ const ERROR_MESSAGES = {
   429: "Too many requests — please wait a moment and try again.",
 };
 
-// Patterns that indicate leaked technical errors in AI responses
+// Common technical error patterns
 const TECHNICAL_PATTERNS = [
   /ExecutionError:\s/i,
   /ChartError:\s/i,
@@ -320,7 +320,7 @@ const TECHNICAL_PATTERNS = [
 
 /**
  * Checks if the AI response text contains leaked technical error patterns.
- * Returns a clean, friendly fallback message if it does, otherwise returns the original text.
+ * Returns a clean, user-friendly  message if it does, otherwise returns the original text.
  */
 function sanitizeAIResponse(text) {
   if (!text || typeof text !== "string") return text;
@@ -412,3 +412,148 @@ async function loadChatHistory() {
 // Load history when page loads
 loadChatHistory();
 // ===================== LOAD CHAT HISTORY ON PAGE LOAD =====================
+
+
+// ===================== CHAT SESSION SIDEBAR =====================
+const sidebar = document.getElementById('sessions-sidebar');
+const sidebarToggle = document.getElementById('sidebar-toggle');
+const closeSidebar = document.getElementById('close-sidebar');
+const sidebarOverlay = document.getElementById('sidebar-overlay');
+const sessionsList = document.getElementById('sessions-list');
+const sessionsLoading = document.getElementById('sessions-loading');
+const sessionsEmpty = document.getElementById('sessions-empty');
+
+let sessionsLoaded = false;
+
+function openSidebar() {
+  sidebar.classList.remove('-translate-x-full');
+  sidebarOverlay.classList.remove('hidden');
+  // Small delay to allow display block to apply before opacity transition
+  setTimeout(() => {
+    sidebarOverlay.classList.remove('opacity-0');
+  }, 10);
+  
+  if (!sessionsLoaded) {
+    loadSessions();
+  }
+}
+
+function closeSidebarPanel() {
+  sidebar.classList.add('-translate-x-full');
+  sidebarOverlay.classList.add('opacity-0');
+  setTimeout(() => {
+    sidebarOverlay.classList.add('hidden');
+  }, 300); // match transition duration
+}
+
+if (sidebarToggle) sidebarToggle.addEventListener('click', openSidebar);
+if (closeSidebar) closeSidebar.addEventListener('click', closeSidebarPanel);
+if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeSidebarPanel);
+
+async function loadSessions() {
+  if (!sessionsLoading || !sessionsEmpty || !sessionsList) return;
+  
+  sessionsLoading.classList.remove('hidden');
+  sessionsEmpty.classList.add('hidden');
+  
+  // Remove any previously rendered session cards
+  document.querySelectorAll('.session-card').forEach(el => el.remove());
+  
+  try {
+    const res = await fetch('/sessions');
+    if (!res.ok) throw new Error('Failed to fetch sessions');
+    const data = await res.json();
+    
+    sessionsLoading.classList.add('hidden');
+    
+    if (!data.sessions || data.sessions.length === 0) {
+      sessionsEmpty.classList.remove('hidden');
+      return;
+    }
+    
+    sessionsLoaded = true;
+    
+    data.sessions.forEach(session => {
+      const card = document.createElement('div');
+      card.className = `session-card group block w-full text-left p-3 rounded-xl border ${session.session_id === sessionID ? 'bg-cyan-50/50 border-cyan-200 shadow-sm' : 'bg-white border-gray-100 shadow-sm hover:border-gray-300 hover:shadow-md'} transition-all relative cursor-pointer`;
+      
+      const link = document.createElement('a');
+      link.href = `/chat?sid=${session.session_id}`;
+      link.className = "absolute inset-0 z-0";
+      card.appendChild(link);
+      
+      const header = document.createElement('div');
+      header.className = "flex justify-between items-start mb-1";
+      
+      const fileIcon = document.createElement('div');
+      fileIcon.className = "flex items-center gap-2 font-medium text-gray-800 text-sm truncate pr-6";
+      fileIcon.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-cyan-600 flex-shrink-0">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+        </svg>
+        <span class="truncate" title="${session.file_name}">${session.file_name}</span>
+      `;
+      
+      header.appendChild(fileIcon);
+      card.appendChild(header);
+      
+      const meta = document.createElement('div');
+      meta.className = "text-xs text-gray-500 mt-1 flex justify-between";
+      meta.innerHTML = `
+        <span>${session.num_rows} rows • ${session.file_size}</span>
+        <span>${session.upload_date}</span>
+      `;
+      card.appendChild(meta);
+      
+      // Delete button
+      const delBtn = document.createElement('button');
+      delBtn.className = "absolute top-2 right-2 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors z-10 opacity-0 group-hover:opacity-100";
+      delBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+        </svg>
+      `;
+      delBtn.title = "Delete session";
+      
+      delBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        if (!confirm('Are you sure you want to delete this session?')) return;
+        
+        delBtn.innerHTML = '<span class="qs-spinner !w-3 !h-3 !border-t-red-500 !border-red-200"></span>';
+        
+        try {
+          const res = await fetch(`/sessions/${session.session_id}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error('Delete failed');
+          
+          card.style.transform = "scale(0.95)";
+          card.style.opacity = "0";
+          setTimeout(() => {
+            card.remove();
+            if (document.querySelectorAll('.session-card').length === 0) {
+              sessionsEmpty.classList.remove('hidden');
+            }
+            if (session.session_id === sessionID) {
+              window.location.href = '/';
+            }
+          }, 200);
+        } catch (err) {
+          console.error(err);
+          alert('Failed to delete session');
+          delBtn.innerHTML = '...'; 
+        }
+      });
+      
+      card.appendChild(delBtn);
+      sessionsList.appendChild(card);
+    });
+    
+  } catch (err) {
+    console.error("Could not load sessions:", err);
+    sessionsLoading.classList.add('hidden');
+    sessionsEmpty.classList.remove('hidden');
+    sessionsEmpty.textContent = "Failed to load sessions.";
+  }
+}
+// ===================== SIDEBAR LOGIC =====================
