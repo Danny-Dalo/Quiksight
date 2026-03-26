@@ -1,9 +1,10 @@
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from app_quiksight.storage.auth_deps import get_optional_user
 from pydantic import BaseModel
 import datetime
 import logging
@@ -42,12 +43,13 @@ TOOLS = [
         "function": {
             "name": "run_python",
             "description": (
-                "Execute Python code against the user's dataset to answer questions that require "
+                "Execute Python code against the user's dataset(s) to answer questions that require "
                 "real computation: counts, sums, averages, filters, groupbys, comparisons, rankings, "
                 "correlations, or anything you cannot determine from the context summary alone. "
                 "Use this whenever the user asks a question that needs actual numbers from the data. "
                 "Do NOT guess or estimate — run code and use real output. "
-                "The dataframe is already loaded as `df`. The result of the last expression is returned."
+                "The data is loaded as a dictionary of pandas DataFrames called `dfs`, where keys are dataset names. "
+                "The result of the last expression is returned."
             ),
             "parameters": {
                 "type": "object",
@@ -55,9 +57,9 @@ TOOLS = [
                     "code": {
                         "type": "string",
                         "description": (
-                            "Valid Python code. `df` (pandas DataFrame) and `pd` are pre-loaded. "
+                            "Valid Python code. `dfs` (dict of pandas DataFrames) and `pd` are pre-loaded. "
                             "Make the last line an expression whose value is the answer "
-                            "(e.g. `df['sales'].sum()` or `df.groupby('region')['revenue'].mean()`). "
+                            "(e.g. `dfs['sales.csv']['revenue'].sum()`). "
                             "For multi-line code, store your final answer in a variable called `result` "
                             "and make the last line just `result`."
                         )
@@ -76,7 +78,7 @@ TOOLS = [
                 "Use this when a chart would genuinely help the user understand the answer — "
                 "rankings, trends over time, distributions, comparisons across categories. "
                 "Do NOT use for single numbers or simple facts that don't benefit from visualization. "
-                "Write Python code using plotly.express (imported as `px`) and `df`. "
+                "Write Python code using plotly.express (imported as `px`) and `dfs` (dict of pandas DataFrames). "
                 "Assign your final figure to a variable called `fig`. "
                 "Returns Plotly JSON that will be rendered as an interactive chart."
             ),
@@ -86,12 +88,12 @@ TOOLS = [
                     "code": {
                         "type": "string",
                         "description": (
-                            "Python code using `df` (pandas DataFrame), `pd`, and `px` (plotly.express). "
+                            "Python code using `dfs` (dict of pandas DataFrames), `pd`, and `px` (plotly.express). "
                             "Must assign the final Plotly figure to `fig`. "
                             "Apply a clean layout: white background, subtle gridlines, clear axis labels, "
                             "a descriptive title. Use `color_discrete_sequence` or `color` where helpful. "
                             "Example:\n"
-                            "  result = df.groupby('region')['sales'].sum().reset_index()\n"
+                            "  result = dfs['sales.csv'].groupby('region')['sales'].sum().reset_index()\n"
                             "  fig = px.bar(result, x='region', y='sales', title='Sales by Region')\n"
                             "  fig.update_layout(plot_bgcolor='white', paper_bgcolor='white')"
                         )
@@ -109,16 +111,16 @@ TOOLS = [
 #  Runs model-generated code safely against the user's dataframe.
 # ==============================================================================
 
-def execute_python(code: str, df: pd.DataFrame) -> str:
+def execute_python(code: str, dfs: dict) -> str:
     """
-    Execute model-generated Python code against the user's dataframe.
+    Execute model-generated Python code against the user's dataframes.
     Returns the result as a string, or a formatted error message.
     """
     logger.info(f"\n   [TOOL] run_python called:\n{code}")
 
-    # Give the model access to df and pandas only — nothing else
+    # Give the model access to dfs and pandas only — nothing else
     local_env = {
-        "df": df.copy(),  # copy so the model can't mutate the real df
+        "dfs": {k: v.copy() for k, v in dfs.items()},  # copy so the model can't mutate the real dfs
         "pd": pd,
         "json": json,
         "result": None,
@@ -162,7 +164,7 @@ def execute_python(code: str, df: pd.DataFrame) -> str:
         )
 
 
-def execute_chart_code(code: str, df: pd.DataFrame) -> str:
+def execute_chart_code(code: str, dfs: dict) -> str:
     """
     Execute model-generated Plotly code. Returns Plotly figure as JSON string,
     or an error message string if execution fails.
@@ -176,7 +178,7 @@ def execute_chart_code(code: str, df: pd.DataFrame) -> str:
         return "ChartError: Charting library is unavailable."
 
     local_env = {
-        "df": df.copy(),
+        "dfs": {k: v.copy() for k, v in dfs.items()},
         "pd": pd,
         "px": px,
         "go": go,
@@ -229,7 +231,7 @@ def call_openrouter(messages: list) -> dict:
 #  final text response. The user only ever sees that final response.
 # ==============================================================================
 
-def run_agentic_loop(messages: list, df: pd.DataFrame, max_iterations: int = 5) -> dict:
+def run_agentic_loop(messages: list, dfs: dict, max_iterations: int = 5) -> dict:
     """
     Loop: call model → if it requests a tool, execute it and feed result back → repeat.
     Stops when the model returns a plain text response (no tool calls).
@@ -256,9 +258,9 @@ def run_agentic_loop(messages: list, df: pd.DataFrame, max_iterations: int = 5) 
                 tool_args = json.loads(tool_call["function"]["arguments"])
 
                 if tool_name == "run_python":
-                    tool_result = execute_python(tool_args["code"], df)
+                    tool_result = execute_python(tool_args["code"], dfs)
                 elif tool_name == "generate_chart":
-                    chart_json = execute_chart_code(tool_args["code"], df)
+                    chart_json = execute_chart_code(tool_args["code"], dfs)
                     # If it's valid JSON (not an error string), collect it
                     if not chart_json.startswith(("ChartError:", "[INTERNAL TOOL ERROR")):
                         charts.append(chart_json)
@@ -298,8 +300,68 @@ def run_agentic_loop(messages: list, df: pd.DataFrame, max_iterations: int = 5) 
 #  ROUTES
 # ==============================================================================
 
+# endpoint to handle user sessions
+@router.get("/sessions")
+async def list_sessions(user = Depends(get_optional_user)):
+    """Return all active sessions for the logged-in user."""
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    user_sessions_key = f"user_sessions:{user.id}"
+    session_ids = redis_client.smembers(user_sessions_key)
+
+    sessions = []
+    expired_ids = []
+    for sid in session_ids:
+        redis_key = f"session:{sid}"
+        if not redis_client.exists(redis_key):
+            expired_ids.append(sid)
+            continue
+        data = redis_client.hgetall(redis_key)
+        sessions.append({
+            "session_id": sid,
+            "file_name": data.get("file_name", "Unknown"),
+            "upload_date": data.get("upload_date", ""),
+            "upload_time": data.get("upload_time", ""),
+            "num_rows": data.get("num_rows", "0"),
+            "file_size": data.get("file_size", ""),
+        })
+
+    # Clean up expired sessions from the user's set
+    if expired_ids:
+        redis_client.srem(user_sessions_key, *expired_ids)
+
+    # Sort newest first by date and time in session bar
+    sessions.sort(key=lambda s: (s["upload_date"], s["upload_time"]), reverse=True)
+    return {"sessions": sessions}
+
+
+@router.delete("/sessions/{sid}")
+async def delete_session(sid: str, user = Depends(get_optional_user)):
+    """Delete a session and its chat history."""
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    redis_key = f"session:{sid}"
+    session_data = redis_client.hgetall(redis_key)
+
+    # Ensures the session belongs to the user
+    if session_data.get("user_id") != user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    # Delete session data, chat history, and remove from user's set
+    redis_client.delete(redis_key)
+    redis_client.delete(f"history:{sid}")
+    redis_client.srem(f"user_sessions:{user.id}", sid)
+
+    return {"status": "deleted"}
+
+
 @router.get("/chat", response_class=HTMLResponse)
-async def chat_page(request: Request, sid: str):
+async def chat_page(request: Request, sid: str, user = Depends(get_optional_user)):
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+        
     logger.info(f"\n     Chat page requested | Session: {sid[:8]}...")
 
     redis_key = f"session:{sid}"
@@ -310,13 +372,23 @@ async def chat_page(request: Request, sid: str):
     session_data = redis_client.hgetall(redis_key)
 
     try:
-        columns = json.loads(session_data.get("columns", "[]"))
-        preview_rows = json.loads(session_data.get("preview_rows", "[]"))
+        columns_dict = json.loads(session_data.get("columns", "{}"))
+        preview_data = json.loads(session_data.get("preview_rows", "{}"))
+        
+        if isinstance(columns_dict, dict) and columns_dict:
+            first_key = list(columns_dict.keys())[0]
+            columns_view = columns_dict[first_key]
+            preview_view = preview_data[first_key]
+        else:
+            columns_view = columns_dict if isinstance(columns_dict, list) else []
+            preview_view = preview_data if isinstance(preview_data, list) else []
+            
     except json.JSONDecodeError:
-        columns, preview_rows = [], []
+        columns_view, preview_view = [], []
 
     return templates.TemplateResponse("chat.html", {
         "request": request,
+        "user": user,
         "session_id": sid,
         "file_name": session_data.get("file_name", "Unknown"),
         "file_extension": session_data.get("file_extension", ""),
@@ -324,15 +396,18 @@ async def chat_page(request: Request, sid: str):
         "upload_date": session_data.get("upload_date", ""),
         "upload_time": session_data.get("upload_time", ""),
         "num_rows": session_data.get("num_rows"),
-        "num_columns": len(columns),
-        "columns": columns,
-        "preview_rows": preview_rows,
+        "num_columns": len(columns_view),
+        "columns": columns_view,
+        "preview_rows": preview_view,
         "cache_buster": datetime.datetime.now().timestamp()
     })
 
 
 @router.get("/chat/history")
-async def chat_history(sid: str):
+async def chat_history(sid: str, user = Depends(get_optional_user)):
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
     """Return saved chat messages so the frontend can restore them on refresh."""
     redis_key = f"session:{sid}"
     if not redis_client.exists(redis_key):
@@ -359,7 +434,10 @@ class ChatRequest(BaseModel):
 
 
 @router.post("/chat")
-async def chat_endpoint(req: ChatRequest, sid: str):
+async def chat_endpoint(req: ChatRequest, sid: str, user = Depends(get_optional_user)):
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
     log_section("💬 CHAT MESSAGE RECEIVED", "─")
 
     redis_key = f"session:{sid}"
@@ -369,23 +447,42 @@ async def chat_endpoint(req: ChatRequest, sid: str):
 
     # 1. Load session data
     session_data = redis_client.hgetall(redis_key)
-    df_path = session_data.get("dataframe_path")
+    
+    dfs = {}
+    df_paths_json = session_data.get("dataframe_paths")
+    if df_paths_json:
+        try:
+            df_paths = json.loads(df_paths_json)
+            for name, path in df_paths.items():
+                if os.path.exists(path):
+                    dfs[name] = pd.read_parquet(path)
+        except Exception as e:
+            logger.error(f"   ✗ Failed to load parquet from dict: {e}")
+            raise HTTPException(status_code=500,
+                detail="We had trouble loading your data. Please try uploading your file again.")
+    else:
+        # Fallback to single file syntax
+        df_path = session_data.get("dataframe_path")
+        if not df_path or not os.path.exists(df_path):
+            raise HTTPException(status_code=500,
+                detail="Your data file could not be found. It may have expired — please try uploading your file again.")
+        try:
+            dfs[session_data.get("file_name", "Data")] = pd.read_parquet(df_path)
+        except Exception as e:
+            logger.error(f"   ✗ Failed to load parquet: {e}")
+            raise HTTPException(status_code=500,
+                detail="We had trouble loading your data. Please try uploading your file again.")
+        
+    if not dfs:
+        raise HTTPException(status_code=500, detail="No readable datasets found.")
 
-    if not df_path or not os.path.exists(df_path):
-        raise HTTPException(status_code=500,
-            detail="Your data file could not be found. It may have expired — please try uploading your file again.")
-
-    try:
-        df = pd.read_parquet(df_path)
-    except Exception as e:
-        logger.error(f"   ✗ Failed to load parquet: {e}")
-        raise HTTPException(status_code=500,
-            detail="We had trouble loading your data. Please try uploading your file again.")
-
-    # 2. Get AI context
-    ai_context = session_data.get("ai_context") or session_data.get("data_context")
+    ai_context = session_data.get("data_context")
     if not ai_context:
-        ai_context = make_ai_context(df, session_data.get("file_name", "Data"))
+        # Fallback to creating context for legacy sessions
+        contexts = []
+        for name, _df in dfs.items():
+            contexts.append(f"📁 Dataset: {name}\n" + make_ai_context(_df, name))
+        ai_context = "\n\n---\n\n".join(contexts)
 
     # 3. Load chat history
     past_history = get_chat_history_openrouter(sid, limit=10)
@@ -420,7 +517,7 @@ async def chat_endpoint(req: ChatRequest, sid: str):
 
     # 6. Run the agentic loop
     try:
-        loop_result = run_agentic_loop(messages, df)
+        loop_result = run_agentic_loop(messages, dfs)
     except requests.exceptions.Timeout:
         logger.error("   ✗ OpenRouter request timed out")
         raise HTTPException(status_code=504,

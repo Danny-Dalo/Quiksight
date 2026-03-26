@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Request, Response, status
-from .routes import upload, chat
+from .routes import upload, chat, auth
+from app_quiksight.storage.auth_deps import get_optional_user
+from fastapi import Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -41,9 +43,10 @@ app.mount("/static", StaticFiles(directory="app_quiksight/static"), name="static
 
 
 @app.get("/", response_class=HTMLResponse)
-async def home(request : Request):
+# Page is shown based on current user in session
+async def home(request : Request, user = Depends(get_optional_user)):
     logger.info("Page Loaded")
-    return templates.TemplateResponse(request=request, name="home.html")
+    return templates.TemplateResponse(request=request, name="home.html", context={"user": user})
 
 # ============================================================
 # Render hosting service spins down after a while
@@ -65,6 +68,7 @@ async def head_ping():
 # =====================================================
 
 
+app.include_router(auth.router, tags=["auth"])
 app.include_router(upload.router, tags=["upload"])
 
 
