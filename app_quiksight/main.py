@@ -46,6 +46,8 @@ app.mount("/static", StaticFiles(directory="app_quiksight/static"), name="static
 # Page is shown based on current user in session
 async def home(request : Request, user = Depends(get_optional_user)):
     logger.info("Page Loaded")
+    if user:
+        return RedirectResponse(url="/chat", status_code=303)
     return templates.TemplateResponse(request=request, name="home.html", context={"user": user})
 
 # ============================================================

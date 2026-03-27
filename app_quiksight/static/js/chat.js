@@ -10,16 +10,18 @@ const textarea = document.getElementById('message-input')
 
 
 // Removing this cancels the "Enter = Send" functionality
-textarea.addEventListener('input', () => {
-  textarea.style.height = 'auto'; // Reset height
-  textarea.style.height = textarea.scrollHeight + 'px'; // Adjust to content
-});
+if (textarea) {
+  textarea.addEventListener('input', () => {
+    textarea.style.height = 'auto'; // Reset height
+    textarea.style.height = textarea.scrollHeight + 'px'; // Adjust to content
+  });
+}
 
 
 
 // ===================================================================
 (() => {
-
+  if (!messageInput || !sendBtn) return;
 
   // Function to resize the textarea dynamically
   function resize() {
@@ -377,10 +379,14 @@ async function sendMessage() {
   }
 }
 
-sendBtn.addEventListener("click", sendMessage);   //when the send button is clicked, trigger the function to send message to AI
-messageInput.addEventListener("keypress", e => {  // 'Enter' key sends the message as well 
-  if (e.key === "Enter") sendMessage();
-});
+if (sendBtn) {
+  sendBtn.addEventListener("click", sendMessage);   //when the send button is clicked, trigger the function to send message to AI
+}
+if (messageInput) {
+  messageInput.addEventListener("keypress", e => {  // 'Enter' key sends the message as well 
+    if (e.key === "Enter") sendMessage();
+  });
+}
 
 
 // ===================== LOAD CHAT HISTORY ON PAGE LOAD =====================

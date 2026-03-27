@@ -358,9 +358,26 @@ async def delete_session(sid: str, user = Depends(get_optional_user)):
 
 
 @router.get("/chat", response_class=HTMLResponse)
-async def chat_page(request: Request, sid: str, user = Depends(get_optional_user)):
+async def chat_page(request: Request, sid: str = None, user = Depends(get_optional_user)):
     if not user:
         return RedirectResponse(url="/login", status_code=303)
+
+    if not sid:
+        return templates.TemplateResponse("chat.html", {
+            "request": request,
+            "user": user,
+            "session_id": "",
+            "file_name": "",
+            "file_extension": "",
+            "file_size": "0 KB",
+            "upload_date": "",
+            "upload_time": "",
+            "num_rows": 0,
+            "num_columns": 0,
+            "columns": [],
+            "preview_rows": [],
+            "cache_buster": datetime.datetime.now().timestamp()
+        })
         
     logger.info(f"\n     Chat page requested | Session: {sid[:8]}...")
 
