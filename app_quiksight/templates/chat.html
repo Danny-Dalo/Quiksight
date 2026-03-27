@@ -13,7 +13,7 @@
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 </head>
 
-<body class="font-['Inter'] m-0 p-0 h-screen overflow-hidden flex flex-col bg-[#f8f9fb]">
+<body class="font-['Inter'] m-0 p-0 h-screen h-[100dvh] overflow-hidden flex flex-col bg-[#f8f9fb]">
 
   <!-- ═══ Navbar ═══ -->
   <nav
@@ -28,7 +28,7 @@
     </div>
     <div class="flex items-center gap-4">
       {% if user %}
-        <span class="text-xs font-medium text-slate-700">Hello, 
+        <span class="text-xs font-medium text-slate-700 hidden sm:inline">Hello, 
         {% if user.user_metadata %}
           {{ user.user_metadata.full_name or user.user_metadata.name or user.email }}
         {% else %}
@@ -75,40 +75,35 @@
   <div id="sidebar-overlay" class="fixed inset-0 bg-gray-900/30 backdrop-blur-[2px] z-[55] hidden opacity-0 transition-opacity duration-300"></div>
 
   <!-- ═══ File Context Bar ═══ -->
-  <div class="shrink-0 bg-white border-b border-gray-200 z-40">
-
+  <div class="shrink-0 bg-white border-b border-gray-200 z-40 w-full overflow-hidden">
     <!-- File Summary line -->
-    <div
-      style="display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:0.6rem;padding:0.45rem 1rem;max-width:960px;margin:0 auto;font-size:0.82rem;color:#4b5563;white-space:nowrap;"
-      class="sm:px-6">
-      <svg style="flex-shrink:0;width:18px;height:18px;color:#0d9488;" xmlns="http://www.w3.org/2000/svg" fill="none"
-        viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round"
-          d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-      </svg>
-      <span style="font-weight:600;color:#111827;font-size:0.85rem;flex-shrink:0;">{{file_name}}</span>
-      <span style="color:#d1d5db;">·</span>
-      <span style="flex-shrink:0;"><strong style="font-weight:600;color:#1f2937;">{{num_rows}}</strong>&nbsp;rows</span>
-      <span style="color:#d1d5db;">·</span>
-      <span style="flex-shrink:0;"><strong
-          style="font-weight:600;color:#1f2937;">{{num_columns}}</strong>&nbsp;cols</span>
-      <span style="color:#d1d5db;">·</span>
-      <span style="flex-shrink:0;"><strong style="font-weight:600;color:#1f2937;">Size:
-        </strong>&nbsp;{{file_size}}</span>
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-y-2 px-4 sm:px-6 py-2 w-full max-w-[960px] mx-auto text-[0.82rem] text-gray-600">
+      
+      <!-- Scrolling Text Section -->
+      <div class="flex-1 flex items-center gap-2 overflow-x-auto whitespace-nowrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] pr-2">
+        <svg class="flex-shrink-0 w-[18px] h-[18px] text-teal-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+        </svg>
+        <span class="font-semibold text-gray-900 text-[0.85rem] max-w-[160px] truncate sm:max-w-none" title="{{file_name}}">{{file_name}}</span>
+        <span class="text-gray-300 flex-shrink-0">·</span>
+        <span class="flex-shrink-0"><strong class="font-semibold text-gray-800">{{num_rows}}</strong>&nbsp;rows</span>
+        <span class="text-gray-300 flex-shrink-0">·</span>
+        <span class="flex-shrink-0"><strong class="font-semibold text-gray-800">{{num_columns}}</strong>&nbsp;cols</span>
+        <span class="text-gray-300 flex-shrink-0 hidden sm:inline">·</span>
+        <span class="flex-shrink-0 hidden sm:inline"><strong class="font-semibold text-gray-800">Size:</strong>&nbsp;{{file_size}}</span>
+      </div>
 
-      <div style="margin-left:auto;display:flex;gap:0.4rem;align-items:center;flex-shrink:0;">
+      <!-- Buttons Section -->
+      <div class="flex gap-2 items-center flex-shrink-0 self-start sm:self-auto">
         <button class="ctx-btn" id="toggle-meta" title="File details">
           Details
-          <svg class="chevron-icon" id="meta-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-            stroke-width="2" stroke="currentColor">
+          <svg class="chevron-icon" id="meta-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
           </svg>
         </button>
         <button class="ctx-btn" id="toggle-preview" title="Preview data">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" color="#020000" fill="none"
-            stroke="#020000" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-            <path
-              d="M3.89124 20.1088C2.5 18.7175 2.5 16.4783 2.5 12C2.5 7.52166 2.5 5.28249 3.89124 3.89124C5.28249 2.5 7.52166 2.5 12 2.5C16.4783 2.5 18.7175 2.5 20.1088 3.89124C21.5 5.28249 21.5 7.52166 21.5 12C21.5 16.4783 21.5 18.7175 20.1088 20.1088C18.7175 21.5 16.4783 21.5 12 21.5C7.52166 21.5 5.28249 21.5 3.89124 20.1088Z" />
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" color="#020000" fill="none" stroke="#020000" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3.89124 20.1088C2.5 18.7175 2.5 16.4783 2.5 12C2.5 7.52166 2.5 5.28249 3.89124 3.89124C5.28249 2.5 7.52166 2.5 12 2.5C16.4783 2.5 18.7175 2.5 20.1088 3.89124C21.5 5.28249 21.5 7.52166 21.5 12C21.5 16.4783 21.5 18.7175 20.1088 20.1088C18.7175 21.5 16.4783 21.5 12 21.5C7.52166 21.5 5.28249 21.5 3.89124 20.1088Z" />
             <path d="M2.5 9L21.5 9" />
             <path d="M2.5 13L21.5 13" />
             <path d="M2.5 17L21.5 17" />
@@ -121,17 +116,17 @@
     </div>
 
     <!-- Expandable metadata -->
-    <div class="collapsible-panel" id="meta-panel">
-      <div class="max-w-[820px] mx-auto px-4 sm:px-6 py-2.5 flex flex-wrap gap-x-8 gap-y-1 text-xs text-gray-500">
-        <div class="flex gap-1.5">
+    <div class="collapsible-panel w-full" id="meta-panel">
+      <div class="max-w-[820px] mx-auto px-4 sm:px-6 py-2.5 flex flex-wrap gap-x-8 gap-y-2 text-xs text-gray-500">
+        <div class="flex gap-1.5 whitespace-nowrap">
           <span class="text-gray-400">Extension:</span>
           <span class="font-medium text-gray-700">{{file_extension}}</span>
         </div>
-        <div class="flex gap-1.5">
+        <div class="flex gap-1.5 whitespace-nowrap">
           <span class="text-gray-400">Upload date:</span>
           <span class="font-medium text-gray-700">{{upload_date}}</span>
         </div>
-        <div class="flex gap-1.5">
+        <div class="flex gap-1.5 whitespace-nowrap">
           <span class="text-gray-400">Upload time:</span>
           <span class="font-medium text-gray-700">{{upload_time}}</span>
         </div>
@@ -140,13 +135,13 @@
   </div>
 
   <!-- ═══ Collapsible Data Preview ═══ -->
-  <div class="collapsible-panel preview-panel" id="preview-panel">
-    <div class="max-w-[960px] mx-auto px-4 sm:px-6 py-2 pb-3">
+  <div class="collapsible-panel preview-panel w-full border-b border-gray-200 bg-white" id="preview-panel">
+    <div class="max-w-[960px] mx-auto px-4 sm:px-6 py-2 pb-3 w-full">
       <div class="flex items-center gap-2 mb-1">
         <h3 class="text-[0.8rem] font-semibold text-gray-800 m-0">Data Preview</h3>
         <span class="text-[0.72rem] text-gray-400">(first {{preview_rows|length}} of {{num_rows}} rows)</span>
       </div>
-      <div class="overflow-x-auto">
+      <div class="overflow-x-auto w-full max-w-full">
         <table class="w-full border-collapse text-[0.78rem]">
           <thead>
             <tr>
@@ -181,8 +176,8 @@
   </div>
 
   <!-- ═══ Chat Thread ═══ -->
-  <div class="chat-thread flex-1 overflow-y-auto pb-[100px]" id="chat-container">
-    <div class="max-w-[820px] mx-auto px-4 sm:px-6 pt-8 pb-4 flex flex-col" id="chat-messages">
+  <div class="chat-thread flex-1 overflow-y-auto pb-[90px] sm:pb-[100px]" id="chat-container">
+    <div class="max-w-[820px] mx-auto px-4 sm:px-6 pt-6 pb-2 sm:pt-8 flex flex-col" id="chat-messages">
       <!-- Empty state — hidden once messages appear -->
       <div class="flex flex-col items-center justify-center pt-16 pb-16 text-center text-gray-400" id="empty-state">
         <svg class="w-12 h-12 mb-4 opacity-35" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
