@@ -28,13 +28,13 @@
     </div>
     <div class="flex items-center gap-4">
       {% if user %}
-        <span class="text-xs font-medium text-slate-700 hidden sm:inline">Hello, 
+        <!-- <span class="text-xs font-medium text-slate-700 hidden sm:inline">Hello, 
         {% if user.user_metadata %}
           {{ user.user_metadata.full_name or user.user_metadata.name or user.email }}
         {% else %}
           User
         {% endif %}
-        </span>
+        </span> -->
         <a href="/logout" class="text-xs font-medium text-red-600 hover:text-red-700 transition">Logout</a>
       {% endif %}
     </div>
@@ -43,7 +43,7 @@
   <!-- ═══ Sessions Sidebar ═══ -->
   <div id="sessions-sidebar" class="fixed inset-y-0 left-0 w-80 bg-white border-r border-gray-200 shadow-2xl transform -translate-x-full transition-transform duration-300 z-[60] flex flex-col">
     <div class="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
-      <h2 class="font-semibold text-gray-800 text-[0.95rem]">Past Sessions</h2>
+      <h2 class="font-semibold text-gray-800 text-[0.95rem]">Your Chat Sessions</h2>
       <button id="close-sidebar" class="p-1.5 rounded-md text-gray-400 hover:bg-gray-200 hover:text-gray-700 transition">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
           <path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clip-rule="evenodd" />
@@ -215,9 +215,15 @@
     <div class="w-full max-w-lg bg-white rounded-2xl shadow-xl shadow-slate-200 border border-slate-200 p-2">
       <div class="p-6">
         <div class="text-center mb-6">
-          <h2 class="text-2xl font-bold text-slate-800">Welcome to Quiksight</h2>
+          <h2 class="text-2xl font-bold text-slate-800">Hello,
+          {% if user.user_metadata %}
+          {{ user.user_metadata.full_name or user.user_metadata.name or user.email }}
+        {% else %}
+          User
+        {% endif %}
+          </h2>
           <p class="text-slate-500 mt-2 text-sm leading-relaxed">
-            Select a past session from the sidebar, or upload a new dataset to start analyzing right away.
+            What can we analyze today?
           </p>
         </div>
         
