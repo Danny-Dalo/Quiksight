@@ -41,12 +41,26 @@ if (textarea) {
 
   });
 
-  // Runs the resize function and button state once the page renders
+// Runs the resize function and button state once the page renders
   function init() {
     resize();
     sendBtn.disabled = !messageInput.value.trim();
   }
   requestAnimationFrame(init);
+
+  // Suggested questions logic
+  const suggestBtns = document.querySelectorAll(".suggest-btn");
+  if (suggestBtns.length > 0) {
+    suggestBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        messageInput.value = btn.innerText;
+        messageInput.focus();
+        // trigger input event to adapt size and button states
+        messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    });
+  }
+
 })();
 
 // ===================================================================

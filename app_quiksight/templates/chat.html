@@ -193,9 +193,18 @@
   </div>
 
   <!-- ═══ Fixed Input Bar ═══ -->
-  <div class="fixed bottom-0 left-0 right-0 z-[45] px-3 sm:px-4 pb-3 pt-3 input-bar-gradient">
+  <div class="fixed bottom-0 left-0 right-0 z-[45] px-3 sm:px-4 pb-3 pt-3 input-bar-gradient flex flex-col items-center">
+    
+    <!-- Suggested Questions -->
+    <div id="suggested-questions" class="flex gap-2 w-full max-w-[820px] mb-2.5 px-1 overflow-x-auto whitespace-nowrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] transition-opacity duration-300">
+      <button class="suggest-btn flex-shrink-0 px-3.5 py-1.5 bg-white/80 hover:bg-white border border-gray-200/80 shadow-[0_2px_6px_-2px_rgba(0,0,0,0.06)] backdrop-blur-md rounded-full text-[0.8rem] font-medium text-slate-600 transition-all hover:text-cyan-900 hover:border-cyan-200 hover:-translate-y-0.5">Tell me about my data</button>
+      <button class="suggest-btn flex-shrink-0 px-3.5 py-1.5 bg-white/80 hover:bg-white border border-gray-200/80 shadow-[0_2px_6px_-2px_rgba(0,0,0,0.06)] backdrop-blur-md rounded-full text-[0.8rem] font-medium text-slate-600 transition-all hover:text-cyan-900 hover:border-cyan-200 hover:-translate-y-0.5">Summarize the dataset</button>
+      <button class="suggest-btn flex-shrink-0 px-3.5 py-1.5 bg-white/80 hover:bg-white border border-gray-200/80 shadow-[0_2px_6px_-2px_rgba(0,0,0,0.06)] backdrop-blur-md rounded-full text-[0.8rem] font-medium text-slate-600 transition-all hover:text-cyan-900 hover:border-cyan-200 hover:-translate-y-0.5">Are there any outliers?</button>
+      <button class="suggest-btn flex-shrink-0 px-3.5 py-1.5 bg-white/80 hover:bg-white border border-gray-200/80 shadow-[0_2px_6px_-2px_rgba(0,0,0,0.06)] backdrop-blur-md rounded-full text-[0.8rem] font-medium text-slate-600 transition-all hover:text-cyan-900 hover:border-cyan-200 hover:-translate-y-0.5">Check for data quality issues</button>
+    </div>
+
     <div
-      class="input-container max-w-[820px] mx-auto bg-white border border-gray-200 rounded-3xl shadow-lg grid items-end px-4 py-1.5 transition-all"
+      class="input-container w-full max-w-[820px] mx-auto bg-white border border-gray-200 rounded-3xl shadow-lg grid items-end px-4 py-1.5 transition-all"
       style="grid-template-columns: 1fr auto;">
       <textarea id="message-input" rows="1"
         class="w-full resize-none border-0 outline-none py-2 font-['Inter'] text-[0.92rem] leading-relaxed text-gray-800 bg-transparent min-h-[24px] max-h-[10.5rem] overflow-y-hidden placeholder:text-gray-300"
@@ -301,6 +310,8 @@
       const hideEmptyState = () => {
         if (emptyState && chatMessagesContainer.children.length > 1) {
           emptyState.style.display = 'none';
+          const suggestedContainer = document.getElementById('suggested-questions');
+          if (suggestedContainer) suggestedContainer.style.display = 'none';
         }
       };
       const observer = new MutationObserver(hideEmptyState);
